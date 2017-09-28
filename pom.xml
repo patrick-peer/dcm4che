@@ -135,12 +135,17 @@
   </modules>
   <distributionManagement>
     <repository>
-      <id>www.dcm4che.org</id>
-      <name>dcm4che Repository</name>
-      <url>scp://www.dcm4che.org:443/home/maven2</url>
+      <id>nexus</id>
+      <name>Nexus Repository</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
     </repository>
   </distributionManagement>
   <repositories>
+    <repository>
+      <id>nexus</id>
+      <name>Nexus Repository</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
+    </repository>
     <repository>
       <id>www.dcm4che.org</id>
       <name>dcm4che Repository</name>
