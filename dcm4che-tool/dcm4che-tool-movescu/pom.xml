@@ -45,7 +45,7 @@
 <<<<<<< HEAD
     <version>5.10.6_syn</version>
 =======
-    <version>5.12.0_syn</version>
+    <version>5.12.0_syn1</version>
 >>>>>>> master
   </parent>
   <artifactId>dcm4che-tool-movescu</artifactId>
