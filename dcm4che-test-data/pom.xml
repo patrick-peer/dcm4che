@@ -45,11 +45,7 @@
     <parent>
         <artifactId>dcm4che-parent</artifactId>
         <groupId>org.dcm4che</groupId>
-<<<<<<< HEAD
-        <version>5.10.6_syn</version>
-=======
         <version>5.12.0_syn1</version>
->>>>>>> master
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
