@@ -43,7 +43,11 @@
   <artifactId>dcm4che-parent</artifactId>
   <packaging>pom</packaging>
   <name>dcm4che DICOM toolkit and utilities</name>
+<<<<<<< HEAD
   <version>5.10.6_syn</version>
+=======
+  <version>5.12.0_syn</version>
+>>>>>>> master
   <description>dcm4che DICOM toolkit and utilities</description>
   <issueManagement>
     <system>JIRA</system>

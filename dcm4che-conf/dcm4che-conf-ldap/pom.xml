@@ -3,7 +3,11 @@
   <parent>
     <artifactId>dcm4che-conf</artifactId>
     <groupId>org.dcm4che</groupId>
+<<<<<<< HEAD
     <version>5.10.6_syn</version>
+=======
+    <version>5.12.0_syn</version>
+>>>>>>> master
   </parent>
   <artifactId>dcm4che-conf-ldap</artifactId>
   <packaging>bundle</packaging>
@@ -43,7 +47,6 @@
       <groupId>org.dcm4che</groupId>
       <artifactId>dcm4che-conf-api</artifactId>
       <version>${project.version}</version>
-      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>junit</groupId>

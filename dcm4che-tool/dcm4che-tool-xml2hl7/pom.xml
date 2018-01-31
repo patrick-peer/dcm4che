@@ -42,7 +42,11 @@
   <parent>
     <artifactId>dcm4che-tool</artifactId>
     <groupId>org.dcm4che.tool</groupId>
+<<<<<<< HEAD
     <version>5.10.6_syn</version>
+=======
+    <version>5.12.0_syn</version>
+>>>>>>> master
     <relativePath>..</relativePath>
   </parent>
   <artifactId>dcm4che-tool-xml2hl7</artifactId>
@@ -52,7 +56,11 @@
     <dependency>
       <groupId>org.dcm4che</groupId>
       <artifactId>dcm4che-hl7</artifactId>
+<<<<<<< HEAD
       <version>5.10.6_syn</version>
+=======
+      <version>5.12.0_syn</version>
+>>>>>>> master
     </dependency>
   </dependencies>
 </project>
