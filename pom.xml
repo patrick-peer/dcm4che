@@ -43,7 +43,7 @@
   <artifactId>dcm4che-parent</artifactId>
   <packaging>pom</packaging>
   <name>dcm4che DICOM toolkit and utilities</name>
-  <version>5.13.0_syn1</version>
+  <version>5.13.0_syn2</version>
   <description>dcm4che DICOM toolkit and utilities</description>
   <issueManagement>
     <system>JIRA</system>
@@ -139,12 +139,17 @@
   </modules>
   <distributionManagement>
     <repository>
-      <id>www.dcm4che.org</id>
-      <name>dcm4che Repository</name>
-      <url>scp://www.dcm4che.org/home/maven2</url>
+      <id>nexus-thirdparty</id>
+      <name>Nexus Repository - 3rd party</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
     </repository>
   </distributionManagement>
   <repositories>
+    <repository>
+      <id>nexus-central</id>
+      <name>Nexus Repository - Maven central</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/central/</url>
+    </repository>
     <repository>
       <id>www.dcm4che.org</id>
       <name>dcm4che Repository</name>
