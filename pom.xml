@@ -43,7 +43,7 @@
   <artifactId>dcm4che-parent</artifactId>
   <packaging>pom</packaging>
   <name>dcm4che DICOM toolkit and utilities</name>
-  <version>5.12.0_syn1</version>
+  <version>5.13.0_syn1</version>
   <description>dcm4che DICOM toolkit and utilities</description>
   <issueManagement>
     <system>JIRA</system>
@@ -60,6 +60,8 @@
   </organization>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <weasis.version>3.0.0-RC1</weasis.version>
+    <weasis.opencv.native.version>3.4.0-dcmR3</weasis.opencv.native.version>
   </properties>
   <build>
     <extensions>
@@ -111,12 +113,14 @@
     <module>dcm4che-conf</module>
     <module>dcm4che-core</module>
     <module>dcm4che-dcmr</module>
+    <module>dcm4che-deident</module>
     <module>dcm4che-dict</module>
     <module>dcm4che-dict-arc</module>
     <module>dcm4che-emf</module>
     <module>dcm4che-hl7</module>
     <module>dcm4che-image</module>
     <module>dcm4che-imageio</module>
+    <module>dcm4che-imageio-opencv</module>
     <module>dcm4che-imageio-rle</module>
     <module>dcm4che-mime</module>
     <module>dcm4che-net</module>
@@ -135,21 +139,20 @@
   </modules>
   <distributionManagement>
     <repository>
-      <id>nexus-thirdparty</id>
-      <name>Nexus Repository - 3rd party</name>
-      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
+      <id>www.dcm4che.org</id>
+      <name>dcm4che Repository</name>
+      <url>scp://www.dcm4che.org/home/maven2</url>
     </repository>
   </distributionManagement>
   <repositories>
     <repository>
-      <id>nexus-central</id>
-      <name>Nexus Repository - Maven central</name>
-      <url>http://javamaster.synedra.lan/nexus/content/repositories/central/</url>
-    </repository>
-    <repository>
       <id>www.dcm4che.org</id>
       <name>dcm4che Repository</name>
-      <url>http://www.dcm4che.org/maven2</url>
+      <url>http://maven.dcm4che.org</url>
+    </repository>
+    <repository>
+      <id>nroduit-mvn-repo-master</id>
+      <url>https://raw.github.com/nroduit/mvn-repo/master/</url>
     </repository>
     <repository>
       <id>jboss</id>
