@@ -145,16 +145,16 @@
   </modules>
   <distributionManagement>
     <repository>
-      <id>www.dcm4che.org</id>
-      <name>dcm4che Repository</name>
-      <url>scp://www.dcm4che.org/home/maven2</url>
+      <id>nexus-thirdparty</id>
+      <name>Nexus Repository - 3rd party</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
     </repository>
   </distributionManagement>
   <repositories>
-    <repository>
-      <id>www.dcm4che.org</id>
-      <name>dcm4che Repository</name>
-      <url>http://maven.dcm4che.org</url>
+     <repository>
+      <id>nexus-central</id>
+      <name>Nexus Repository - Maven central</name>
+      <url>http://javamaster.synedra.lan/nexus/content/repositories/central/</url>
     </repository>
     <repository>
       <id>nroduit-mvn-repo-master</id>
