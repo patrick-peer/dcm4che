@@ -513,15 +513,17 @@ public class Association {
 
             @Override
             public void run() {
-                decoder = new PDUDecoder(Association.this, in);
-                device.addAssociation(Association.this);
-                try {
+            	try {
+                    decoder = new PDUDecoder(Association.this, in);
+                    device.addAssociation(Association.this);
                     while (!(state == State.Sta1 || state == State.Sta13))
                         decoder.nextPDU();
                 } catch (AAbort aa) {
                     abort(aa);
                 } catch (IOException e) {
                     onIOException(e);
+                } catch (RuntimeException e) {
+                    onIOException(new IOException("Unexpected Error", e));
                 } finally {
                     device.removeAssociation(Association.this);
                     onClose();
@@ -828,14 +830,18 @@ public class Association {
         }
     }
 
-    private void initPCMap() {
-        for (PresentationContext pc : ac.getPresentationContexts())
-            if (pc.isAccepted())
-                initTSMap(rq.getPresentationContext(pc.getPCID())
-                            .getAbstractSyntax())
-                        .put(pc.getTransferSyntax(), pc);
+	private void initPCMap() {
+        for (PresentationContext pc : ac.getPresentationContexts()) {
+            if (pc.isAccepted()) {
+                PresentationContext offeredPresentationContex = rq.getPresentationContext(pc.getPCID());
+                if (offeredPresentationContex != null) {
+                    String abstractSyntax = offeredPresentationContex.getAbstractSyntax();
+                    initTSMap(abstractSyntax).put(pc.getTransferSyntax(), pc);
+                }
+            }
+        }
     }
-
+    
     private HashMap<String, PresentationContext> initTSMap(String as) {
         HashMap<String, PresentationContext> tsMap = pcMap.get(as);
         if (tsMap == null)
