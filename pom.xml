@@ -43,7 +43,7 @@
   <artifactId>dcm4che-parent</artifactId>
   <packaging>pom</packaging>
   <name>dcm4che DICOM toolkit and utilities</name>
-  <version>5.10.6_syn</version>
+  <version>5.10.6_syn2</version>
   <description>dcm4che DICOM toolkit and utilities</description>
   <issueManagement>
     <system>JIRA</system>
@@ -135,16 +135,16 @@
   </modules>
   <distributionManagement>
     <repository>
-      <id>nexus</id>
+      <id>nexus-thirdparty</id>
       <name>Nexus Repository</name>
       <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
     </repository>
   </distributionManagement>
   <repositories>
     <repository>
-      <id>nexus</id>
+      <id>nexus-public</id>
       <name>Nexus Repository</name>
-      <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty/</url>
+      <url>http://javamaster.synedra.lan/nexus/content/groups/public/</url>
     </repository>
     <repository>
       <id>www.dcm4che.org</id>
