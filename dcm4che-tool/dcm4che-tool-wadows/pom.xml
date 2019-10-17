@@ -5,7 +5,7 @@
     <parent>
         <artifactId>dcm4che-tool</artifactId>
         <groupId>org.dcm4che.tool</groupId>
-        <version>5.15.0_syn1</version>
+        <version>5.19.1_syn1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -33,6 +33,14 @@
             <groupId>org.dcm4che</groupId>
             <artifactId>dcm4che-xdsi</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.activation</groupId>
+            <artifactId>jakarta.activation-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.sun.xml.ws</groupId>
+            <artifactId>rt</artifactId>
         </dependency>
     </dependencies>
 

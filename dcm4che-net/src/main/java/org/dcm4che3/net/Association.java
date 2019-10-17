@@ -244,9 +244,13 @@ public class Association {
     }
 
     private void checkIsSCP(String cuid) throws NoRoleSelectionException {
-        if (!isSCPFor(cuid))
-            throw new NoRoleSelectionException(cuid,
-                    TransferCapability.Role.SCP);
+        if (!isSCPFor(cuid)) {
+            NoRoleSelectionException ex = new NoRoleSelectionException(cuid, TransferCapability.Role.SCP);
+            if (ae.isRoleSelectionNegotiationLenient() && ac.getRoleSelectionFor(cuid) == null)
+                LOG.info("{}: {}", this, ex.getMessage());
+            else
+                throw ex;
+        }
     }
 
     public boolean isSCPFor(String cuid) {
@@ -257,9 +261,13 @@ public class Association {
     }
 
     private void checkIsSCU(String cuid) throws NoRoleSelectionException {
-        if (!isSCUFor(cuid))
-            throw new NoRoleSelectionException(cuid,
-                    TransferCapability.Role.SCU);
+        if (!isSCUFor(cuid)) {
+            NoRoleSelectionException ex = new NoRoleSelectionException(cuid, TransferCapability.Role.SCU);
+            if (ae.isRoleSelectionNegotiationLenient() && ac.getRoleSelectionFor(cuid) == null)
+                LOG.info("{}: {}", this, ex.getMessage());
+            else
+                throw ex;
+        }
     }
 
     public boolean isSCUFor(String cuid) {
@@ -299,6 +307,11 @@ public class Association {
 
     public String getLocalImplClassUID() {
         return (requestor ? rq : ac).getImplClassUID();
+    }
+
+    public String getAbstractSyntax(int pcid) {
+        PresentationContext rqpc = rq.getPresentationContext(pcid);
+        return rqpc != null ? rqpc.getAbstractSyntax() : null;
     }
 
     final int getMaxPDULengthSend() {
@@ -343,15 +356,16 @@ public class Association {
     void doCloseSocketDelayed() {
         enterState(State.Sta13);
         int delay = conn.getSocketCloseDelay();
-        if (delay > 0)
+        if (delay > 0) {
             device.schedule(new Runnable() {
-    
+
                 @Override
                 public void run() {
                     closeSocket();
                 }
             }, delay, TimeUnit.MILLISECONDS);
-        else
+            LOG.debug("{}: closing {} in {} ms", name, sock, delay);
+        } else
             closeSocket();
     }
 
@@ -366,7 +380,7 @@ public class Association {
     }
 
     void write(AAbort aa) throws IOException  {
-        LOG.info("{} << {}", name, aa);
+        LOG.info("{} << {}", name, aa.toString());
         encoder.write(aa);
         ex = aa;
         closeSocketDelayed();
@@ -468,9 +482,9 @@ public class Association {
         startIdleTimeout();
     }
 
-    private void write(AAssociateRJ e) throws IOException {
-        LOG.info("{} << {}", name, e);
-        encoder.write(e);
+    private void write(AAssociateRJ rj) throws IOException {
+        LOG.info("{} << {}", name, rj.toString());
+        encoder.write(rj);
         closeSocketDelayed();
     }
 
@@ -513,7 +527,7 @@ public class Association {
 
             @Override
             public void run() {
-            	try {
+                try {
                     decoder = new PDUDecoder(Association.this, in);
                     device.addAssociation(Association.this);
                     while (!(state == State.Sta1 || state == State.Sta13))
@@ -522,7 +536,7 @@ public class Association {
                     abort(aa);
                 } catch (IOException e) {
                     onIOException(e);
-                } catch (RuntimeException e) {
+                } catch (Exception e) {
                     onIOException(new IOException("Unexpected Error", e));
                 } finally {
                     device.removeAssociation(Association.this);
@@ -830,18 +844,17 @@ public class Association {
         }
     }
 
-	private void initPCMap() {
-        for (PresentationContext pc : ac.getPresentationContexts()) {
+    private void initPCMap() {
+        for (PresentationContext pc : ac.getPresentationContexts())
             if (pc.isAccepted()) {
-                PresentationContext offeredPresentationContex = rq.getPresentationContext(pc.getPCID());
-                if (offeredPresentationContex != null) {
-                    String abstractSyntax = offeredPresentationContex.getAbstractSyntax();
-                    initTSMap(abstractSyntax).put(pc.getTransferSyntax(), pc);
-                }
+                PresentationContext rqpc = rq.getPresentationContext(pc.getPCID());
+                if (rqpc != null)
+                    initTSMap(rqpc.getAbstractSyntax()).put(pc.getTransferSyntax(), pc);
+                else
+                    LOG.info("{}: Ignore unexpected {} in A-ASSOCIATE-AC", name, pc);
             }
-        }
     }
-    
+
     private HashMap<String, PresentationContext> initTSMap(String as) {
         HashMap<String, PresentationContext> tsMap = pcMap.get(as);
         if (tsMap == null)
@@ -1023,7 +1036,7 @@ public class Association {
             Attributes data, String tsuid, DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, tsuid);
-        checkIsSCP(cuid);
+        checkIsSCP(asuid);
         Attributes neventrq =
                 Commands.mkNEventReportRQ(rspHandler.getMessageID(), cuid, iuid,
                         eventTypeId, data);
@@ -1055,7 +1068,7 @@ public class Association {
             DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, null);
-        checkIsSCU(cuid);
+        checkIsSCU(asuid);
         Attributes ngetrq =
                 Commands.mkNGetRQ(rspHandler.getMessageID(), cuid, iuid, tags);
         invoke(pc, ngetrq, null, rspHandler, conn.getResponseTimeout());
@@ -1107,7 +1120,7 @@ public class Association {
             DataWriter data, String tsuid, DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, tsuid);
-        checkIsSCU(cuid);
+        checkIsSCU(asuid);
         Attributes nsetrq =
                 Commands.mkNSetRQ(rspHandler.getMessageID(), cuid, iuid);
         invoke(pc, nsetrq, data, rspHandler, conn.getResponseTimeout());
@@ -1137,7 +1150,7 @@ public class Association {
             Attributes data, String tsuid, DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, tsuid);
-        checkIsSCU(cuid);
+        checkIsSCU(asuid);
         Attributes nactionrq =
                 Commands.mkNActionRQ(rspHandler.getMessageID(), cuid, iuid,
                         actionTypeId, data);
@@ -1169,7 +1182,7 @@ public class Association {
             Attributes data, String tsuid, DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, tsuid);
-        checkIsSCU(cuid);
+        checkIsSCU(asuid);
         Attributes ncreaterq =
                 Commands.mkNCreateRQ(rspHandler.getMessageID(), cuid, iuid);
         invoke(pc, ncreaterq, DataWriterAdapter.forAttributes(data), rspHandler,
@@ -1199,7 +1212,7 @@ public class Association {
             DimseRSPHandler rspHandler)
             throws IOException, InterruptedException {
         PresentationContext pc = pcFor(asuid, null);
-        checkIsSCU(cuid);
+        checkIsSCU(asuid);
         Attributes ndeleterq =
                 Commands.mkNDeleteRQ(rspHandler.getMessageID(), cuid, iuid);
         invoke(pc, ndeleterq, null, rspHandler, conn.getResponseTimeout());

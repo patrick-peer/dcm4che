@@ -285,6 +285,18 @@ public class MediaTypes {
     public final static MediaType MULTIPART_RELATED_APPLICATION_DICOM_XML_TYPE =
             new MediaType("multipart", "related", Collections.singletonMap("type", APPLICATION_DICOM_XML));
 
+    /**
+     * "model/stl"
+     */
+    public final static String MODEL_STL = "model/stl";
+
+    /**
+     * "model/stl"
+     */
+    public final static MediaType MODEL_STL_TYPE =
+            new MediaType("model", "stl");
+
+
     public static MediaType forTransferSyntax(String ts) {
         MediaType type;
         switch (ts) {
@@ -361,7 +373,18 @@ public class MediaTypes {
         return type.equals("image") ? UID.SecondaryCaptureImageStorage
                 : type.equals("video") ? UID.VideoPhotographicImageStorage
                 : equalsIgnoreParameters(bulkdataMediaType, APPLICATION_PDF_TYPE) ? UID.EncapsulatedPDFStorage
+                : equalsIgnoreParameters(bulkdataMediaType, MediaType.APPLICATION_XML_TYPE) ? UID.EncapsulatedCDAStorage
+                : equalsIgnoreParameters(bulkdataMediaType, MODEL_STL_TYPE) ? UID.EncapsulatedSTLStorage
                 : null;
+    }
+
+    public static String mimeTypeOf(MediaType bulkdataMediaType) {
+        return equalsIgnoreParameters(bulkdataMediaType, APPLICATION_PDF_TYPE)
+                ? APPLICATION_PDF
+                : equalsIgnoreParameters(bulkdataMediaType, MediaType.APPLICATION_XML_TYPE)
+                    ? MediaType.TEXT_XML
+                    : equalsIgnoreParameters(bulkdataMediaType, MODEL_STL_TYPE)
+                        ? MODEL_STL : null;
     }
 
     public static boolean equalsIgnoreParameters(MediaType type1, MediaType type2) {
@@ -384,7 +407,7 @@ public class MediaTypes {
         if (mediaType.getParameters().size() > 1) {
             Map<String, String> params = new HashMap<>(mediaType.getParameters());
             params.remove("type");
-            partType = new MediaType(mediaType.getType(), mediaType.getSubtype(), params);
+            partType = new MediaType(partType.getType(), partType.getSubtype(), params);
         }
         return partType;
     }

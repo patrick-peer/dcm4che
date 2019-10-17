@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.text.MessageFormat;
+import java.util.EnumMap;
 import java.util.Properties;
 import java.util.ResourceBundle;
 
@@ -61,6 +62,7 @@ import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.ElementDictionary;
 import org.dcm4che3.data.Sequence;
 import org.dcm4che3.data.VR;
+import org.dcm4che3.io.BasicBulkDataDescriptor;
 import org.dcm4che3.io.DicomEncodingOptions;
 import org.dcm4che3.net.ApplicationEntity;
 import org.dcm4che3.net.Connection;
@@ -545,8 +547,9 @@ public class CLIUtils {
 
         Device device = conn.getDevice();
         try {
-            device.setKeyManager(SSLManagerFactory.createKeyManager(
-                    keyStoreType, keyStoreURL, keyStorePass, keyPass));
+            if (!keyStoreURL.isEmpty())
+                device.setKeyManager(SSLManagerFactory.createKeyManager(
+                        keyStoreType, keyStoreURL, keyStorePass, keyPass));
             device.setTrustManager(SSLManagerFactory.createTrustManager(
                     trustStoreType, trustStoreURL, trustStorePass));
         } catch (GeneralSecurityException e) {
@@ -739,7 +742,7 @@ public class CLIUtils {
                 addAttributes(attrs,
                         toTags(
                                 StringUtils.split(optVals[i-1], '/')),
-                                StringUtils.split(optVals[i], '/'));
+                                optVals[i]);
     }
 
     public static void addEmptyAttributes(Attributes attrs, String[] optVals) {
@@ -747,6 +750,12 @@ public class CLIUtils {
             for (int i = 0; i < optVals.length; i++)
                 addAttributes(attrs,
                         toTags(StringUtils.split(optVals[i], '/')));
+    }
+
+    public static void addTagPaths(BasicBulkDataDescriptor desc, String[] optVals) {
+        if (optVals != null)
+            for (int i = 0; i < optVals.length; i++)
+                desc.addTagPath(toTags(StringUtils.split(optVals[i], '/')));
     }
 
     public static boolean updateAttributes(Attributes data, Attributes attrs,
@@ -781,4 +790,5 @@ public class CLIUtils {
                 ? uid
                 : UID.forName(uid);
     }
+
 }

@@ -42,7 +42,7 @@
   <parent>
     <groupId>org.dcm4che</groupId>
     <artifactId>dcm4che-parent</artifactId>
-    <version>5.15.0_syn1</version>
+    <version>5.19.1_syn1</version>
   </parent>
   <artifactId>dcm4che-json</artifactId>
   <packaging>bundle</packaging>
@@ -64,7 +64,7 @@
     </dependency>
     <dependency>
       <groupId>org.glassfish</groupId>
-      <artifactId>javax.json</artifactId>
+      <artifactId>jakarta.json</artifactId>
     </dependency>
     <dependency>
       <groupId>junit</groupId>

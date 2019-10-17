@@ -42,6 +42,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -380,7 +381,7 @@ public class Dcm2Dcm {
                     tsuid = adjustTransferSyntax(tsuid,
                             dataset.getInt(Tag.BitsStored, 8));
                     compressor = new Compressor(dataset, dis.getTransferSyntax());
-                    compressor.compress(tsuid, params.toArray(new Property[0]));
+                    compressor.compress(tsuid, params.toArray(new Property[params.size()]));
                 } else if (pixeldata instanceof Fragments)
                     Decompressor.decompress(dataset, dis.getTransferSyntax());
             }
@@ -406,13 +407,16 @@ public class Dcm2Dcm {
             transcoder.setEncodingOptions(encOpts);
             transcoder.setDestinationTransferSyntax(tsuid);
             if (tstype.isPixeldataEncapsulated())
-                transcoder.setCompressParams(params.toArray(new Property[0]));
+                transcoder.setCompressParams(params.toArray(new Property[params.size()]));
             transcoder.transcode(new Transcoder.Handler(){
                 @Override
                 public OutputStream newOutputStream(Transcoder transcoder, Attributes dataset) throws IOException {
                     return new FileOutputStream(dest);
                 }
             });
+        } catch (Exception e) {
+            Files.delete(dest.toPath());
+            throw e;
         }
     }
 

@@ -120,7 +120,7 @@ public class DicomInputStream extends FilterInputStream
     private boolean excludeBulkData;
     private boolean includeBulkDataURI;
 
-    private boolean catBlkFiles;
+    private boolean catBlkFiles = true;
     private String blkFilePrefix = "blk";
     private String blkFileSuffix;
     private File blkDirectory;
@@ -529,7 +529,8 @@ public class DicomInputStream extends FilterInputStream
                                     // will fail on UN fragments!
                 }
                 excludeBulkData = includeBulkData == IncludeBulkData.NO && isBulkData(attrs);
-                includeBulkDataURI = includeBulkData == IncludeBulkData.URI && isBulkData(attrs);
+                includeBulkDataURI = len != 0 && vr != VR.SQ
+                        && includeBulkData == IncludeBulkData.URI && isBulkData(attrs);
                 handler.readValue(this, attrs);
             } else
                 skipAttribute(UNEXPECTED_ATTRIBUTE);
@@ -652,7 +653,7 @@ public class DicomInputStream extends FilterInputStream
     private void skipAttribute(String message) throws IOException {
         LOG.warn(message,
                  new Object[] { TagUtils.toString(tag), length, tagPos });
-        skip(length);
+        skipFully(length);
     }
 
     private void readSequence(int len, Attributes attrs, int sqtag)
@@ -782,7 +783,11 @@ public class DicomInputStream extends FilterInputStream
             byte[] value = new byte[allocLen];
             readFully(value, 0, allocLen);
             while (allocLen < valLen) {
-                int newLength = Math.min(valLen, allocLen << 1);
+                int newLength = allocLen << 1;
+                if (newLength < 0)
+                    newLength = Integer.MAX_VALUE;
+                if (newLength > valLen)
+                    newLength = valLen;
                 value = Arrays.copyOf(value, newLength);
                 readFully(value, allocLen, newLength - allocLen);
                 allocLen = newLength;

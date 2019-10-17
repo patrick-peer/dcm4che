@@ -47,6 +47,7 @@ import java.awt.image.Raster;
 
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.VR;
 import org.dcm4che3.util.ByteUtils;
 
 /**
@@ -132,11 +133,28 @@ public class LookupTableFactory {
                 return;
             }
         }
-        if (vLUT != null)
+        if (vLUT != null) {
+            adjustVOILUTDescriptor(vLUT);
             voiLUT = createLUT(modalityLUT != null
                           ? new StoredValue.Unsigned(modalityLUT.outBits)
                           : storedValue,
                       vLUT);
+        }
+    }
+
+    private void adjustVOILUTDescriptor(Attributes vLUT) {
+        int[] desc = vLUT.getInts(Tag.LUTDescriptor);
+        byte[] data;
+        if (desc != null && desc.length == 3 && desc[2] == 16
+                && (data = vLUT.getSafeBytes(Tag.LUTData)) != null) {
+            int hiByte = 0;
+            for (int i = vLUT.bigEndian() ? 0 : 1; i < data.length; i++, i++)
+                hiByte |= data[i];
+            if ((hiByte & 0x80) == 0) {
+                desc[2] = 40 - Integer.numberOfLeadingZeros(hiByte & 0xFF);
+                vLUT.setInt(Tag.LUTDescriptor, VR.SS, desc);
+            }
+        }
     }
 
     private LookupTable createLUT(StoredValue inBits, Attributes attrs) {
@@ -252,35 +270,29 @@ public class LookupTableFactory {
         if (modalityLUT != null || voiLUT != null || windowWidth != 0)
             return false;
 
-        int min = img.getInt(Tag.SmallestImagePixelValue, 0);
-        int max = img.getInt(Tag.LargestImagePixelValue, 0);
-        if (max == 0) {
-            int[] min_max;
-            ComponentSampleModel sm = (ComponentSampleModel) raster.getSampleModel();
-            DataBuffer dataBuffer = raster.getDataBuffer();
-            switch (dataBuffer.getDataType()) {
+        int[] min_max = calcMinMax(raster);
+        windowCenter = (min_max[0] + min_max[1] + 1) / 2 * rescaleSlope + rescaleIntercept;
+        windowWidth = Math.abs((min_max[1] + 1 - min_max[0]) * rescaleSlope);
+        return true;
+    }
+
+    private int[] calcMinMax(Raster raster) {
+        ComponentSampleModel sm = (ComponentSampleModel) raster.getSampleModel();
+        DataBuffer dataBuffer = raster.getDataBuffer();
+        switch (dataBuffer.getDataType()) {
             case DataBuffer.TYPE_BYTE:
-                min_max = calcMinMax(storedValue, sm,
+                return calcMinMax(storedValue, sm,
                         ((DataBufferByte) dataBuffer).getData());
-                break;
             case DataBuffer.TYPE_USHORT:
-                min_max = calcMinMax(storedValue, sm,
+                return calcMinMax(storedValue, sm,
                         ((DataBufferUShort) dataBuffer).getData());
-                break;
             case DataBuffer.TYPE_SHORT:
-                min_max = calcMinMax(storedValue, sm,
+                return calcMinMax(storedValue, sm,
                         ((DataBufferShort) dataBuffer).getData());
-                break;
             default:
                 throw new UnsupportedOperationException(
                         "DataBuffer: "+ dataBuffer.getClass() + " not supported");
-            }
-            min = min_max[0];
-            max = min_max[1];
         }
-        windowCenter = (min + max + 1) / 2 * rescaleSlope + rescaleIntercept;
-        windowWidth = Math.abs((max + 1 - min) * rescaleSlope);
-        return true;
     }
 
     private int[] calcMinMax(StoredValue storedValue, ComponentSampleModel sm,
