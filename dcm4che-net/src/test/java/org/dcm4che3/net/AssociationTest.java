@@ -2,6 +2,7 @@ package org.dcm4che3.net;
 
 import static org.junit.Assert.fail;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,7 +12,6 @@ import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.util.concurrent.Executors;
 
-import org.apache.commons.io.IOUtils;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.TransferCapability.Role;
 import org.dcm4che3.net.pdu.AAssociateRQ;
@@ -115,7 +115,16 @@ public class AssociationTest {
 
         private byte[] getBytesFromResource(String name) throws IOException {
             InputStream inputStream = AssociationTest.class.getResourceAsStream(name);
-            return IOUtils.toByteArray(inputStream);
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8 * 1024];
+            
+            int readBytes = inputStream.read(buffer);
+            while(readBytes > -1) {
+            	byteArrayOutputStream.write(buffer, 0, readBytes);
+            	readBytes = inputStream.read(buffer);
+            }
+            
+            return byteArrayOutputStream.toByteArray();
         }
 
         public void start() {
