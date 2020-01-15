@@ -56,13 +56,7 @@ import org.dcm4che3.data.VR;
 import org.dcm4che3.io.DicomInputStream;
 import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.io.DicomInputStream.IncludeBulkData;
-import org.dcm4che3.net.ApplicationEntity;
-import org.dcm4che3.net.Association;
-import org.dcm4che3.net.Connection;
-import org.dcm4che3.net.Device;
-import org.dcm4che3.net.PDVInputStream;
-import org.dcm4che3.net.Status;
-import org.dcm4che3.net.TransferCapability;
+import org.dcm4che3.net.*;
 import org.dcm4che3.net.pdu.PresentationContext;
 import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.BasicCStoreSCP;
@@ -92,13 +86,15 @@ public class StoreSCP {
     private File storageDir;
     private AttributesFormat filePathFormat;
     private int status;
-    private int responseDelay;
+    private int[] receiveDelays;
+    private int[] responseDelays;
     private final BasicCStoreSCP cstoreSCP = new BasicCStoreSCP("*") {
 
         @Override
         protected void store(Association as, PresentationContext pc,
                 Attributes rq, PDVInputStream data, Attributes rsp)
                 throws IOException {
+            sleep(as, receiveDelays);
             try {
                 rsp.setInt(Tag.Status, VR.US, status);
                 if (storageDir == null)
@@ -120,15 +116,22 @@ public class StoreSCP {
                     throw new DicomServiceException(Status.ProcessingFailure, e);
                 }
             } finally {
-                if (responseDelay > 0)
-                    try {
-                        Thread.sleep(responseDelay);
-                    } catch (InterruptedException ignore) {
-                    }
+                sleep(as, responseDelays);
             }
         }
 
     };
+
+    private void sleep(Association as, int[] delays) {
+        int responseDelay = delays != null
+                ? delays[(as.getNumberOfReceived(Dimse.C_STORE_RQ) - 1) % delays.length]
+                : 0;
+        if (responseDelay > 0)
+            try {
+                Thread.sleep(responseDelay);
+            } catch (InterruptedException ignore) {
+            }
+    }
 
     public StoreSCP() throws IOException {
         device.setDimseRQHandler(createServiceRegistry());
@@ -198,8 +201,12 @@ public class StoreSCP {
         this.status = status;
     }
 
-    public void setResponseDelay(int responseDelay) {
-        this.responseDelay = responseDelay;
+    public void setReceiveDelays(int[] receiveDelays) {
+        this.receiveDelays = receiveDelays;
+    }
+
+    public void setResponseDelays(int[] responseDelays) {
+        this.responseDelays = responseDelays;
     }
 
     private static CommandLine parseComandLine(String[] args)
@@ -209,13 +216,13 @@ public class StoreSCP {
         CLIUtils.addAEOptions(opts);
         CLIUtils.addCommonOptions(opts);
         addStatusOption(opts);
-        addResponseDelayOption(opts);
+        addDelayOption(opts, "receive-delay");
+        addDelayOption(opts, "response-delay");
         addStorageDirectoryOptions(opts);
         addTransferCapabilityOptions(opts);
         return CLIUtils.parseComandLine(args, opts, rb, StoreSCP.class);
     }
 
-    @SuppressWarnings("static-access")
     private static void addStatusOption(Options opts) {
         opts.addOption(Option.builder()
                 .hasArg()
@@ -225,16 +232,15 @@ public class StoreSCP {
                 .build());
     }
 
-    private static void addResponseDelayOption(Options opts) {
+    private static void addDelayOption(Options opts, String longOpt) {
         opts.addOption(Option.builder()
-                .hasArg()
+                .hasArgs()
                 .argName("ms")
-                .desc(rb.getString("response-delay"))
-                .longOpt("response-delay")
+                .desc(rb.getString(longOpt))
+                .longOpt(longOpt)
                 .build());
     }
 
-    @SuppressWarnings("static-access")
     private static void addStorageDirectoryOptions(Options opts) {
         opts.addOption(null, "ignore", false,
                 rb.getString("ignore"));
@@ -252,7 +258,6 @@ public class StoreSCP {
                 .build());
     }
 
-    @SuppressWarnings("static-access")
     private static void addTransferCapabilityOptions(Options opts) {
         opts.addOption(null, "accept-unknown", false,
                 rb.getString("accept-unknown"));
@@ -271,7 +276,8 @@ public class StoreSCP {
             CLIUtils.configureBindServer(main.conn, main.ae, cl);
             CLIUtils.configure(main.conn, cl);
             main.setStatus(CLIUtils.getIntOption(cl, "status", 0));
-            main.setResponseDelay(CLIUtils.getIntOption(cl, "response-delay", 0));
+            main.setReceiveDelays(CLIUtils.getIntsOption(cl, "receive-delay"));
+            main.setResponseDelays(CLIUtils.getIntsOption(cl, "response-delay"));
             configureTransferCapability(main.ae, cl);
             configureStorageDirectory(main, cl);
             ExecutorService executorService = Executors.newCachedThreadPool();

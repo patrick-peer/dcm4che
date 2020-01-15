@@ -128,6 +128,7 @@ public class JsonConfiguration {
         writer.writeNotEmpty("dcmWebServiceClass", webappInfo.getServiceClasses());
         writer.writeNotNullOrDef("dicomAETitle", webappInfo.getAETitle(), null);
         writer.writeNotEmpty("dicomApplicationCluster", webappInfo.getApplicationClusters());
+        writer.writeNotEmpty("dcmProperty", webappInfo.getProperties());
         writer.writeNotNull("dicomInstalled", webappInfo.getInstalled());
         writeNotExtendedConns(webappInfo.getConnections(), writer);
         gen.writeEnd();
@@ -417,6 +418,10 @@ public class JsonConfiguration {
                     conn.getAcceptTimeout(), Connection.NO_TIMEOUT);
             writer.writeNotDef("dcmARRPTimeout",
                     conn.getReleaseTimeout(), Connection.NO_TIMEOUT);
+            writer.writeNotDef("dcmSendTimeout",
+                    conn.getSendTimeout(), Connection.NO_TIMEOUT);
+            writer.writeNotDef("dcmStoreTimeout",
+                    conn.getStoreTimeout(), Connection.NO_TIMEOUT);
             writer.writeNotDef("dcmResponseTimeout",
                     conn.getResponseTimeout(), Connection.NO_TIMEOUT);
             writer.writeNotDef("dcmRetrieveTimeout",
@@ -506,6 +511,12 @@ public class JsonConfiguration {
                                 break;
                             case "dcmARRPTimeout":
                                 conn.setReleaseTimeout(reader.intValue());
+                                break;
+                            case "dcmSendTimeout":
+                                conn.setSendTimeout(reader.intValue());
+                                break;
+                            case "dcmStoreTimeout":
+                                conn.setStoreTimeout(reader.intValue());
                                 break;
                             case "dcmResponseTimeout":
                                 conn.setResponseTimeout(reader.intValue());
@@ -868,6 +879,7 @@ public class JsonConfiguration {
         writer.writeNotEmpty("dcmWebServiceClass", webapp.getServiceClasses());
         writer.writeNotNullOrDef("dicomAETitle", webapp.getAETitle(), null);
         writer.writeNotEmpty("dicomApplicationCluster", webapp.getApplicationClusters());
+        writer.writeNotEmpty("dcmProperty", webapp.getProperties());
         writer.writeConnRefs(conns, webapp.getConnections());
         writer.writeNotNull("dicomInstalled", webapp.getInstalled());
         writer.writeEnd();
@@ -908,6 +920,9 @@ public class JsonConfiguration {
                     break;
                 case "dicomApplicationCluster":
                     webapp.setApplicationClusters(reader.stringArray());
+                    break;
+                case "dcmProperty":
+                    webapp.setProperties(reader.stringArray());
                     break;
                 case "dicomInstalled":
                     webapp.setInstalled(reader.booleanValue());

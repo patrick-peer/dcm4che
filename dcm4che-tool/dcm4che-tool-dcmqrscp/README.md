@@ -63,8 +63,9 @@ Options:
     --fs-id <id>                        specify File-set ID
     --fs-uid <uid>                      specify File-set UID
  -h,--help                              display this help and exit
-    --idle-timeout <ms>                 timeout in ms for receiving
-                                        DIMSE-RQ, no timeout by default
+    --idle-timeout <ms>                 timeout in ms for aborting idle
+                                        Associations, no timeout by
+                                        default
     --key-pass <password>               password for accessing the key in
                                         the key store, key store password
                                         by default
@@ -139,15 +140,22 @@ Options:
                                         Factory.xml by default
     --relational                        support relational queries and
                                         retrievals
+    --relational-lenient                accept C-FIND, C-GET and C-MOVE
+                                        RQs with missing Unique Key
+                                        Attribute for levels above the
+                                        Query/Retrieve level even if no
+                                        Relational-Queries/Retrieve was
+                                        negotiated
     --release-timeout <ms>              timeout in ms for receiving
                                         A-RELEASE-RP, no timeout by
                                         default
     --request-timeout <ms>              timeout in ms for receiving
                                         A-ASSOCIATE-RQ, no timeout by
                                         default
-    --response-timeout <ms>             timeout in ms for receiving
-                                        outstanding response messages, no
-                                        timeout by default
+    --response-timeout <ms>             timeout in ms for receiving other
+                                        outstanding DIMSE RSPs than C-MOVE
+                                        or C-GET RSPs, no timeout by
+                                        default
     --retrieve-sop-classes <file|url>   file path or URL of list of
                                         accepted Retrieve SOP Classes,
                                         resource:retrieve-sop-classes.prop
@@ -157,6 +165,9 @@ Options:
                                         sending C-STORE-RQs to C-GET SCUs
                                         or N-EVENT-REPORT-RQs to Storage
                                         Commitment SCUs
+    --send-timeout <ms>                 timeout in ms for sending other
+                                        DIMSE RQs than C-STORE RQs, no
+                                        timeout by default
     --soclose-delay <ms>                delay in ms after sending
                                         A-ASSOCATE-RJ, A-RELEASE-RQ or
                                         A-ABORT before the socket is
@@ -184,6 +195,8 @@ Options:
                                         accepted Storage SOP Classes,
                                         resource:storage-sop-classes.prope
                                         rties by default
+    --store-timeout <ms>                timeout in ms for sending C-STORE
+                                        sRQ, no timeout by default
     --tcp-delay                         set TCP_NODELAY socket option to
                                         false, true by default
     --tls                               enable TLS connection without
@@ -216,11 +229,10 @@ Options:
     --tls-protocol <protocol>           TLS/SSL protocol to use. Multiple
                                         TLS/SSL protocols may be enabled
                                         by multiple --tls-protocol
-                                        options. Supported values by
-                                        SunJSSE 1.8: TLSv1, TLSv1.1,
-                                        TLSv1.2, SSLv3, SSLv2Hello. By
-                                        default, TLSv1, TLSv1.1 and
-                                        TLSv1.2 are enabled.
+                                        options. Supported values by Java
+                                        11: TLSv1, TLSv1.1, TLSv1.2,
+                                        TLSv1.3, SSLv3, SSLv2Hello. By
+                                        default, only TLSv1.2 is enabled.
     --tls1                              enable only TLS/SSL protocol
                                         TLSv1; equivalent to
                                         --tls-protocol TLSv1
@@ -230,6 +242,9 @@ Options:
     --tls12                             enable only TLS/SSL protocol
                                         TLSv1.2; equivalent to
                                         --tls-protocol TLSv1.2
+    --tls13                             enable only TLS/SSL protocol
+                                        TLSv1.3; equivalent to
+                                        --tls-protocol TLSv1.3
     --trust-store <file|url>            file path of key store containing
                                         trusted certificates,
                                         resource:cacerts.jks by default

@@ -58,7 +58,6 @@ import javax.naming.directory.SearchResult;
 import org.dcm4che3.conf.api.ConfigurationChanges;
 import org.dcm4che3.conf.api.*;
 import org.dcm4che3.conf.api.ConfigurationException;
-import org.dcm4che3.data.Issuer;
 import org.dcm4che3.io.BasicBulkDataDescriptor;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.Connection.Protocol;
@@ -126,6 +125,7 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
             "dicomAETitle",
             "dicomDescription",
             "dicomApplicationCluster",
+            "dcmProperty",
             "dicomInstalled",
             "dicomNetworkConnectionReference"
     };
@@ -525,6 +525,7 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         webappInfo.setServiceClasses(LdapUtils.enumArray(WebApplication.ServiceClass.class, attrs.get("dcmWebServiceClass")));
         webappInfo.setAETitle(LdapUtils.stringValue(attrs.get("dicomAETitle"), null));
         webappInfo.setApplicationClusters(LdapUtils.stringArray(attrs.get("dicomApplicationCluster")));
+        webappInfo.setProperties(LdapUtils.stringArray(attrs.get("dcmProperty")));
         String keycloakClientID = LdapUtils.stringValue(attrs.get("dcmKeycloakClientID"), null);
         webappInfo.setKeycloakClientID(keycloakClientID);
         webappInfo.setInstalled(LdapUtils.booleanValue(attrs.get("dicomInstalled"), null));
@@ -1064,6 +1065,10 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
                 conn.getAcceptTimeout(), Connection.NO_TIMEOUT);
         LdapUtils.storeNotDef(ldapObj, attrs, "dcmARRPTimeout",
                 conn.getReleaseTimeout(), Connection.NO_TIMEOUT);
+        LdapUtils.storeNotDef(ldapObj, attrs, "dcmSendTimeout",
+                conn.getSendTimeout(), Connection.NO_TIMEOUT);
+        LdapUtils.storeNotDef(ldapObj, attrs, "dcmStoreTimeout",
+                conn.getStoreTimeout(), Connection.NO_TIMEOUT);
         LdapUtils.storeNotDef(ldapObj, attrs, "dcmResponseTimeout",
                 conn.getResponseTimeout(), Connection.NO_TIMEOUT);
         LdapUtils.storeNotDef(ldapObj, attrs, "dcmRetrieveTimeout",
@@ -1137,6 +1142,7 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         LdapUtils.storeNotEmpty(ldapObj, attrs, "dcmWebServiceClass", webapp.getServiceClasses());
         LdapUtils.storeNotNullOrDef(ldapObj, attrs, "dicomAETitle", webapp.getAETitle(), null);
         LdapUtils.storeNotEmpty(ldapObj, attrs, "dicomApplicationCluster", webapp.getApplicationClusters());
+        LdapUtils.storeNotEmpty(ldapObj, attrs, "dcmProperty", webapp.getProperties());
         LdapUtils.storeConnRefs(ldapObj, attrs, webapp.getConnections(), deviceDN);
         LdapUtils.storeNotNullOrDef(ldapObj, attrs, "dicomInstalled", webapp.getInstalled(), null);
         return attrs;
@@ -1429,21 +1435,21 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         device.setStationName(LdapUtils.stringValue(attrs.get("dicomStationName"), null));
         device.setDeviceSerialNumber(LdapUtils.stringValue(attrs.get("dicomDeviceSerialNumber"), null));
         device.setIssuerOfPatientID(
-                issuerValue(attrs.get("dicomIssuerOfPatientID")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfPatientID")));
         device.setIssuerOfAccessionNumber(
-                issuerValue(attrs.get("dicomIssuerOfAccessionNumber")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfAccessionNumber")));
         device.setOrderPlacerIdentifier(
-                issuerValue(attrs.get("dicomOrderPlacerIdentifier")));
+                LdapUtils.issuerValue(attrs.get("dicomOrderPlacerIdentifier")));
         device.setOrderFillerIdentifier(
-                issuerValue(attrs.get("dicomOrderFillerIdentifier")));
+                LdapUtils.issuerValue(attrs.get("dicomOrderFillerIdentifier")));
         device.setIssuerOfAdmissionID(
-                issuerValue(attrs.get("dicomIssuerOfAdmissionID")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfAdmissionID")));
         device.setIssuerOfServiceEpisodeID(
-                issuerValue(attrs.get("dicomIssuerOfServiceEpisodeID")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfServiceEpisodeID")));
         device.setIssuerOfContainerIdentifier(
-                issuerValue(attrs.get("dicomIssuerOfContainerIdentifier")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfContainerIdentifier")));
         device.setIssuerOfSpecimenIdentifier(
-                issuerValue(attrs.get("dicomIssuerOfSpecimenIdentifier")));
+                LdapUtils.issuerValue(attrs.get("dicomIssuerOfSpecimenIdentifier")));
         device.setInstitutionNames(LdapUtils.stringArray(attrs.get("dicomInstitutionName")));
         device.setInstitutionCodes(LdapUtils.codeArray(attrs.get("dicomInstitutionCode")));
         device.setInstitutionAddresses(LdapUtils.stringArray(attrs.get("dicomInstitutionAddress")));
@@ -1535,6 +1541,10 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         conn.setAcceptTimeout(LdapUtils.intValue(attrs.get("dcmAAACTimeout"),
                 Connection.NO_TIMEOUT));
         conn.setReleaseTimeout(LdapUtils.intValue(attrs.get("dcmARRPTimeout"),
+                Connection.NO_TIMEOUT));
+        conn.setSendTimeout(LdapUtils.intValue(attrs.get("dcmSendTimeout"),
+                Connection.NO_TIMEOUT));
+        conn.setStoreTimeout(LdapUtils.intValue(attrs.get("dcmStoreTimeout"),
                 Connection.NO_TIMEOUT));
         conn.setResponseTimeout(LdapUtils.intValue(attrs.get("dcmResponseTimeout"),
                 Connection.NO_TIMEOUT));
@@ -1652,6 +1662,7 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         webapp.setServiceClasses(LdapUtils.enumArray(WebApplication.ServiceClass.class, attrs.get("dcmWebServiceClass")));
         webapp.setAETitle(LdapUtils.stringValue(attrs.get("dicomAETitle"), null));
         webapp.setApplicationClusters(LdapUtils.stringArray(attrs.get("dicomApplicationCluster")));
+        webapp.setProperties(LdapUtils.stringArray(attrs.get("dcmProperty")));
         webapp.setInstalled(LdapUtils.booleanValue(attrs.get("dicomInstalled"), null));
     }
 
@@ -1878,6 +1889,14 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
                 a.getReleaseTimeout(),
                 b.getReleaseTimeout(),
                 Connection.NO_TIMEOUT);
+        LdapUtils.storeDiff(ldapObj, mods, "dcmSendTimeout",
+                a.getSendTimeout(),
+                b.getSendTimeout(),
+                Connection.NO_TIMEOUT);
+        LdapUtils.storeDiff(ldapObj, mods, "dcmStoreTimeout",
+                a.getStoreTimeout(),
+                b.getStoreTimeout(),
+                Connection.NO_TIMEOUT);
         LdapUtils.storeDiff(ldapObj, mods, "dcmResponseTimeout",
                 a.getResponseTimeout(),
                 b.getResponseTimeout(),
@@ -2091,6 +2110,7 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
         LdapUtils.storeDiff(ldapObj, mods, "dicomApplicationCluster",
                 a.getApplicationClusters(),
                 b.getApplicationClusters());
+        LdapUtils.storeDiffProperties(ldapObj, mods, "dcmProperty", a.getProperties(), b.getProperties());
         LdapUtils.storeDiff(ldapObj, mods, "dicomNetworkConnectionReference",
                 a.getConnections(),
                 b.getConnections(),
@@ -2129,10 +2149,6 @@ public final class LdapDicomConfiguration implements DicomConfiguration {
             bb[i] = (byte[]) attr.get(i);
 
         return bb;
-    }
-
-    private static Issuer issuerValue(Attribute attr) throws NamingException {
-        return attr != null ? new Issuer((String) attr.get()) : null;
     }
 
     private void mergeAEs(ConfigurationChanges diffs, Device prevDev, Device dev, String deviceDN, boolean preserveVendorData)

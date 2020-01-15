@@ -41,10 +41,7 @@
 
 package org.dcm4che3.net;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.*;
 
 /**
  * Description of a Web Application provided by {@link Device}.
@@ -60,6 +57,7 @@ public class WebApplication {
         STOW_RS,
         QIDO_RS,
         UPS_RS,
+        QIDO_COUNT,
         DCM4CHEE_ARC,
         DCM4CHEE_ARC_AET,
         PAM,
@@ -78,7 +76,8 @@ public class WebApplication {
     private String[] applicationClusters = {};
     private String keycloakClientID;
     private Boolean installed;
-    private EnumSet<ServiceClass> serviceClasses = EnumSet.noneOf(ServiceClass.class);
+    private final EnumSet<ServiceClass> serviceClasses = EnumSet.noneOf(ServiceClass.class);
+    private final Map<String, String> properties = new HashMap<>();
     private final List<Connection> conns = new ArrayList<>(1);
 
     public WebApplication() {}
@@ -232,6 +231,29 @@ public class WebApplication {
         return serviceClasses.contains(serviceClass);
     }
 
+    public void setProperty(String name, String value) {
+        properties.put(name, value);
+    }
+
+    public String getProperty(String name, String defValue) {
+        String value = properties.get(name);
+        return value != null ? value : defValue;
+    }
+
+    public Map<String,String> getProperties() {
+        return properties;
+    }
+
+    public void setProperties(String[] ss) {
+        properties.clear();
+        for (String s : ss) {
+            int index = s.indexOf('=');
+            if (index < 0)
+                throw new IllegalArgumentException("Property in incorrect format : " + s);
+            setProperty(s.substring(0, index), s.substring(index+1));
+        }
+    }
+
     void reconfigure(WebApplication src) {
         description = src.description;
         servicePath = src.servicePath;
@@ -241,6 +263,8 @@ public class WebApplication {
         installed = src.installed;
         serviceClasses.clear();
         serviceClasses.addAll(src.serviceClasses);
+        properties.clear();
+        properties.putAll(src.properties);
         device.reconfigureConnections(conns, src.conns);
     }
 
@@ -250,6 +274,11 @@ public class WebApplication {
                 + ",classes=" + serviceClasses
                 + ",path=" + servicePath
                 + ",aet=" + aeTitle
+                + ",applicationClusters=" + Arrays.toString(applicationClusters)
+                + ",keycloakClientID=" + keycloakClientID
+                + ",serviceClasses=" + serviceClasses
+                + ",properties=" + properties
+                + ",installed=" + installed
                 + ']';
     }
 }
