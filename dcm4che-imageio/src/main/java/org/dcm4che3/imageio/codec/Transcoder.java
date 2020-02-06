@@ -117,7 +117,7 @@ public class Transcoder implements Closeable {
 
     private boolean lossyCompression;
 
-    private int bitsCompressed = -1;
+    private int bitsCompressed = 0;
 
     private int maxPixelValueError = -1;
 
@@ -272,9 +272,9 @@ public class Transcoder implements Closeable {
         this.lossyCompression = TransferSyntaxType.isLossyCompression(tsuid);
         this.destTransferSyntax = tsuid;
 
-        if (srcTransferSyntaxType != TransferSyntaxType.NATIVE)
+        if (srcTransferSyntaxType.isPixeldataEncapsulated())
             initDecompressor();
-        if (destTransferSyntaxType != TransferSyntaxType.NATIVE)
+        if (destTransferSyntaxType.isPixeldataEncapsulated())
             initCompressor(tsuid);
     }
 
@@ -526,7 +526,7 @@ public class Transcoder implements Closeable {
                 dataset.setInt(Tag.HighBit, VR.US, 7);
                 pmi = PhotometricInterpretation.RGB;
                 LOG.warn("Converting PALETTE_COLOR model into a lossy format is not recommended, prefer a lossless format");
-            } else if ((pmi.isSubSampled() && srcTransferSyntaxType == TransferSyntaxType.NATIVE)
+            } else if ((pmi.isSubSampled() && !srcTransferSyntaxType.isPixeldataEncapsulated())
                     || (pmi == PhotometricInterpretation.YBR_FULL
                             && TransferSyntaxType.isYBRCompression(destTransferSyntax))) {
                 ybr2rgb = true;
@@ -539,7 +539,7 @@ public class Transcoder implements Closeable {
                 }
             }
             dataset.setString(Tag.PhotometricInterpretation, VR.CS,  pmiForCompression(pmi).toString());
-            compressorImageDescriptor = new ImageDescriptor(dataset);
+            compressorImageDescriptor = new ImageDescriptor(dataset, bitsCompressed);
             pmi = pmi.compress(destTransferSyntax);
             dataset.setString(Tag.PhotometricInterpretation, VR.CS,  pmi.toString());
             if (dataset.getInt(Tag.SamplesPerPixel, 1) > 1)
@@ -574,23 +574,29 @@ public class Transcoder implements Closeable {
     }
 
     private void nullifyUnusedBits() {
-        if (imageDescriptor.getBitsCompressed() < imageDescriptor.getBitsAllocated()) {
+        if (imageDescriptor.getBitsStored() < imageDescriptor.getBitsAllocated()) {
             DataBuffer db = originalBi.getRaster().getDataBuffer();
             switch (db.getDataType()) {
                 case DataBuffer.TYPE_USHORT:
                     nullifyUnusedBits(((DataBufferUShort) db).getData());
                     break;
                 case DataBuffer.TYPE_SHORT:
-                    nullifyUnusedBits(((DataBufferShort) db).getData());
+                    extendSignUnusedBits(((DataBufferShort) db).getData());
                     break;
             }
         }
     }
 
     private void nullifyUnusedBits(short[] data) {
-        int mask = (1<<imageDescriptor.getBitsCompressed())-1;
+        int mask = (1<<imageDescriptor.getBitsStored())-1;
         for (int i = 0; i < data.length; i++)
             data[i] &= mask;
+    }
+
+    private void extendSignUnusedBits(short[] data) {
+        int unused = 32 - imageDescriptor.getBitsStored();
+        for (int i = 0; i < data.length; i++)
+            data[i] = (short) ((data[i] << unused) >> unused);
     }
 
     private BufferedImage decompressFrame(int frameIndex) throws IOException {
@@ -888,20 +894,15 @@ public class Transcoder implements Closeable {
                 }
             return maxDiff / samples.length;
         }
-        switch (db.getDataType()) {
-            case DataBuffer.TYPE_BYTE:
-                return maxDiff(csm, ((DataBufferByte) db).getBankData(),
-                        csm2, ((DataBufferByte) db2).getBankData());
-            case DataBuffer.TYPE_USHORT:
-                return maxDiff(csm, ((DataBufferUShort) db).getData(),
-                        csm2, ((DataBufferUShort) db2).getData());
-            case DataBuffer.TYPE_SHORT:
-                return maxDiff(csm, ((DataBufferShort) db).getData(),
-                        csm2, ((DataBufferShort) db2).getData());
-            default:
-                throw new UnsupportedOperationException(
-                        "Unsupported Datatype: " + db.getDataType());
-        }
+        return (db.getDataType() == DataBuffer.TYPE_BYTE)
+            ? maxDiff(csm, ((DataBufferByte) db).getBankData(), csm2, ((DataBufferByte) db2).getBankData())
+            : maxDiff(csm, toShortData(db), csm2, toShortData(db2));
+    }
+
+    private static short[] toShortData(DataBuffer db) {
+        return  db.getDataType() == DataBuffer.TYPE_SHORT
+                                ? ((DataBufferShort) db).getData()
+                                : ((DataBufferUShort) db).getData();
     }
 
     private int sum(int[] samples) {

@@ -53,12 +53,14 @@ public enum TransferSyntaxType {
     JPEG_EXTENDED(true, true, false, 12, 0),
     JPEG_SPECTRAL(true, true, false, 12, 0),
     JPEG_PROGRESSIVE(true, true, false, 12, 0),
-    JPEG_LOSSLESS(true, true, false, 16, 0),
-    JPEG_LS(true, true, false, 16, 0),
+    JPEG_LOSSLESS(true, true, true, 16, 0),
+    JPEG_LS(true, true, true, 16, 0),
     JPEG_2000(true, true, true, 16, 0),
-    RLE(true, false, false, 16, 1),
-    JPIP(false, false, false, 16, 0),
-    MPEG(true, false, false, 8, 0);
+    RLE(true, false, true, 16, 1),
+    JPIP(false, false, true, 16, 0),
+    MPEG(true, false, false, 8, 0),
+    DEFLATED(false, false, true, 16, 0),
+    UNKNOWN(false, false, true, 16, 0);
 
     private final boolean pixeldataEncapsulated;
     private final boolean frameSpanMultipleFragments;
@@ -109,11 +111,12 @@ public enum TransferSyntaxType {
 
     public static TransferSyntaxType forUID(String uid) {
         switch(uid) {
-        	case UID.ImplicitVRLittleEndian:
-        	case UID.ExplicitVRLittleEndian:
-        	case UID.ExplicitVRBigEndianRetired:
-        	case UID.DeflatedExplicitVRLittleEndian:
-        		return NATIVE;
+            case UID.ImplicitVRLittleEndian:
+            case UID.ExplicitVRLittleEndian:
+            case UID.ExplicitVRBigEndianRetired:
+                return NATIVE;
+            case UID.DeflatedExplicitVRLittleEndian:
+                return DEFLATED;
             case UID.JPEGBaseline1:
                 return JPEG_BASELINE;
             case UID.JPEGExtended24:
@@ -148,9 +151,8 @@ public enum TransferSyntaxType {
                 return MPEG;
             case UID.RLELossless:
                 return RLE;
-            default:
-            	return null;
         }
+        return UNKNOWN;
     }
 
     public static boolean isLossyCompression(String uid) {

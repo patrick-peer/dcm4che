@@ -208,6 +208,17 @@ public class MediaTypes {
             new MediaType("video", "mp4");
 
     /**
+     * "video/quicktime"
+     */
+    public final static String VIDEO_QUICKTIME = "video/quicktime";
+
+    /**
+     * "video/quicktime"
+     */
+    public final static MediaType VIDEO_QUICKTIME_TYPE =
+            new MediaType("video", "quicktime");
+
+    /**
      * "application/pdf"
      */
     public final static String APPLICATION_PDF = "application/pdf";
@@ -296,6 +307,28 @@ public class MediaTypes {
     public final static MediaType MODEL_STL_TYPE =
             new MediaType("model", "stl");
 
+    /**
+     * "model/obj"
+     */
+    public final static String MODEL_OBJ = "model/obj";
+
+    /**
+     * "model/obj"
+     */
+    public final static MediaType MODEL_OBJ_TYPE =
+            new MediaType("model", "obj");
+
+    /**
+     * "model/mtl"
+     */
+    public final static String MODEL_MTL = "model/mtl";
+
+    /**
+     * "model/mtl"
+     */
+    public final static MediaType MODEL_MTL_TYPE =
+            new MediaType("model", "mtl");
+
 
     public static MediaType forTransferSyntax(String ts) {
         MediaType type;
@@ -362,7 +395,7 @@ public class MediaTypes {
         } else if (type.equals("video")) {
             if (subtype.equals("mpeg"))
                 return UID.MPEG2;
-            else if (subtype.equals("mp4"))
+            else if (subtype.equals("mp4") || subtype.equals("quicktime"))
                 return UID.MPEG4AVCH264HighProfileLevel41;
         }
         return UID.ExplicitVRLittleEndian;
@@ -375,16 +408,9 @@ public class MediaTypes {
                 : equalsIgnoreParameters(bulkdataMediaType, APPLICATION_PDF_TYPE) ? UID.EncapsulatedPDFStorage
                 : equalsIgnoreParameters(bulkdataMediaType, MediaType.APPLICATION_XML_TYPE) ? UID.EncapsulatedCDAStorage
                 : equalsIgnoreParameters(bulkdataMediaType, MODEL_STL_TYPE) ? UID.EncapsulatedSTLStorage
+                : equalsIgnoreParameters(bulkdataMediaType, MODEL_OBJ_TYPE) ? UID.EncapsulatedOBJStorage
+                : equalsIgnoreParameters(bulkdataMediaType, MODEL_MTL_TYPE) ? UID.EncapsulatedMTLStorage
                 : null;
-    }
-
-    public static String mimeTypeOf(MediaType bulkdataMediaType) {
-        return equalsIgnoreParameters(bulkdataMediaType, APPLICATION_PDF_TYPE)
-                ? APPLICATION_PDF
-                : equalsIgnoreParameters(bulkdataMediaType, MediaType.APPLICATION_XML_TYPE)
-                    ? MediaType.TEXT_XML
-                    : equalsIgnoreParameters(bulkdataMediaType, MODEL_STL_TYPE)
-                        ? MODEL_STL : null;
     }
 
     public static boolean equalsIgnoreParameters(MediaType type1, MediaType type2) {

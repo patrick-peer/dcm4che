@@ -1,8 +1,8 @@
-    usage: jpg2dcm [options] <jpeg|jp2|mpeg2|mp4-file> <dicom-file>
-    or jpg2dcm [options] <jpeg|jp2|mpeg2|mp4-file>... <dicom-outdir>
-    or jpg2dcm [options] <jpeg|jp2|mpeg2|mp4-indir>... <dicom-outdir>
+    usage: jpg2dcm [options] <jpeg|jp2|mpeg2|mp4|mov-file> <dicom-file>
+    or jpg2dcm [options] <jpeg|jp2|mpeg2|mp4|mov-file>... <dicom-outdir>
+    or jpg2dcm [options] <jpeg|jp2|mpeg2|mp4|mov-indir>... <dicom-outdir>
     
-    Encapsulate JPEG image or JPEG 2000 Part1 or MPEG2 video or MP4 video
+    Encapsulate JPEG, JPEG 2000 Part1 image or MPEG2, MP4 or Quicktime video
     file(s) (or present in directories) into DICOM file(s) (or into DICOM
     directory). DICOM attributes can be specified via command line (using -m
     option) or a XML file (using -f option). If both the options are
