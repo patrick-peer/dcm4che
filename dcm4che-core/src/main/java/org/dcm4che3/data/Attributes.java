@@ -65,6 +65,8 @@ public class Attributes implements Serializable {
     }
 
     public interface SequenceVisitor extends Visitor {
+    	default void startSequence(int sqTag) {};
+    	default void endSequence() {};
         void startItem(int sqTag, int itemIndex);
         void endItem();
     }
@@ -2695,6 +2697,8 @@ public class Attributes implements Serializable {
             if (!visitor.visit(this, tags[i], vrs[i], values[i]))
                 return false;
             if (visitNestedDatasets && (values[i] instanceof Sequence)) {
+                if (visitor instanceof SequenceVisitor)
+                    ((SequenceVisitor) visitor).startSequence(tags[i]);
                 int itemIndex = 0;
                 for (Attributes item : (Sequence) values[i]) {
                     if (visitor instanceof SequenceVisitor)
@@ -2705,6 +2709,8 @@ public class Attributes implements Serializable {
                         ((SequenceVisitor) visitor).endItem();
                     itemIndex++;
                 }
+                if (visitor instanceof SequenceVisitor)
+                    ((SequenceVisitor) visitor).endSequence();
             }
         }
         return true;
