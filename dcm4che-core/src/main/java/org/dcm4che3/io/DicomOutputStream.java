@@ -76,8 +76,7 @@ public class DicomOutputStream extends FilterOutputStream {
     public DicomOutputStream(OutputStream out, String tsuid)
             throws IOException {
         super(out);
-        switchBigEndianAndExplicitVr(tsuid);
-		switchOutputStream(tsuid);
+        switchTransferSyntax(tsuid);
     }
 
     public DicomOutputStream(File file) throws IOException {
@@ -129,14 +128,13 @@ public class DicomOutputStream extends FilterOutputStream {
         write(preamble);
         write(DICM);
         fmi.writeGroupTo(this, Tag.FileMetaInformationGroupLength);
-        switchBigEndianAndExplicitVr(fmi.getString(Tag.TransferSyntaxUID, null));
     }
 
     public void writeDataset(Attributes fmi, Attributes dataset)
             throws IOException {
         if (fmi != null) {
             writeFileMetaInformation(fmi);
-			switchOutputStream(fmi.getString(Tag.TransferSyntaxUID, null));
+            switchTransferSyntax(fmi.getString(Tag.TransferSyntaxUID, null));
         }
         if (dataset.bigEndian() != bigEndian
                 || encOpts.groupLength
@@ -148,18 +146,15 @@ public class DicomOutputStream extends FilterOutputStream {
         dataset.writeTo(this);
     }
 
-	private void switchBigEndianAndExplicitVr(String tsuid) {
-		bigEndian = tsuid.equals(UID.ExplicitVRBigEndianRetired);
-		explicitVR = !tsuid.equals(UID.ImplicitVRLittleEndian);
-	}
-
-    private void switchOutputStream(String tsuid) {
-		if (tsuid.equals(UID.DeflatedExplicitVRLittleEndian)
+    public void switchTransferSyntax(String tsuid) {
+        bigEndian = tsuid.equals(UID.ExplicitVRBigEndianRetired);
+        explicitVR = !tsuid.equals(UID.ImplicitVRLittleEndian);
+        if (tsuid.equals(UID.DeflatedExplicitVRLittleEndian)
                         || tsuid.equals(UID.JPIPReferencedDeflate)) {
                 super.out = new DeflaterOutputStream(super.out,
                         new Deflater(Deflater.DEFAULT_COMPRESSION, true));
         }
-	}
+    }
 
     public void writeHeader(int tag, VR vr, int len) throws IOException {
         byte[] b = buf;
