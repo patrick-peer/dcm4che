@@ -116,8 +116,9 @@ class NativeJ2kImageWriter extends ImageWriter {
                 int cvType = mat.type();
                 int elemSize = (int) mat.elemSize1();
                 int channels = CvType.channels(cvType);
-                int dcmFlags = CvType.depth(cvType) == CvType.CV_16S ? Imgcodecs.DICOM_IMREAD_SIGNED
-                    : Imgcodecs.DICOM_IMREAD_UNSIGNED;
+                int dcmFlags = CvType.depth(cvType) == CvType.CV_16S ? Imgcodecs.DICOM_FLAG_SIGNED
+                    : Imgcodecs.DICOM_FLAG_UNSIGNED;
+				int epi = channels == 1 ? Imgcodecs.EPI_Monochrome2 : Imgcodecs.EPI_RGB;
 
                 int[] params = new int[15];
                 params[Imgcodecs.DICOM_PARAM_IMREAD] = Imgcodecs.IMREAD_UNCHANGED; // Image flags
@@ -127,9 +128,11 @@ class NativeJ2kImageWriter extends ImageWriter {
                 params[Imgcodecs.DICOM_PARAM_COMPRESSION] = Imgcodecs.DICOM_CP_J2K; // Type of compression
                 params[Imgcodecs.DICOM_PARAM_COMPONENTS] = channels; // Number of components
                 params[Imgcodecs.DICOM_PARAM_BITS_PER_SAMPLE] = desc.getBitsCompressed(); // Bits per sample
-                params[Imgcodecs.DICOM_PARAM_INTERLEAVE_MODE] = Imgcodecs.ILV_SAMPLE; // Interleave mode
-                params[Imgcodecs.DICOM_PARAM_BYTES_PER_LINE] = mat.width() * elemSize; // Bytes per line
-                params[Imgcodecs.DICOM_PARAM_ALLOWED_LOSSY_ERROR] = j2kParams.isCompressionLossless() ? 0 : 1;
+//                params[Imgcodecs.DICOM_PARAM_INTERLEAVE_MODE] = Imgcodecs.ILV_SAMPLE; // Interleave mode
+//                params[Imgcodecs.DICOM_PARAM_BYTES_PER_LINE] = mat.width() * elemSize; // Bytes per line
+//                params[Imgcodecs.DICOM_PARAM_ALLOWED_LOSSY_ERROR] = j2kParams.isCompressionLossless() ? 0 : 1;
+				params[Imgcodecs.DICOM_PARAM_INTERLEAVE_MODE] = Imgcodecs.ILV_SAMPLE; // Interleave mode
+				params[Imgcodecs.DICOM_PARAM_COLOR_MODEL] = epi; // Photometric interpretation
                 params[Imgcodecs.DICOM_PARAM_JPEG_QUALITY] = (int) (j2kParams.getCompressionQuality() * 100); // JPEG lossy  quality
 
                 dicomParams = new MatOfInt(params);
