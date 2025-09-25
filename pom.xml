@@ -77,8 +77,8 @@
   </organization>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.7</maven.compiler.source>
-    <maven.compiler.target>1.7</maven.compiler.target>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
     <slf4j.version>1.7.29</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
     <weasis.version>3.5.3</weasis.version>
@@ -201,14 +201,14 @@
 <distributionManagement>
   <repository>
     <id>nexus-thirdparty</id>
-    <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty</url>
+    <url>https://javamaster.synedra.lan/nexus/content/repositories/thirdparty</url>
   </repository>
 </distributionManagement>
   <repositories>
     <repository>
       <id>www.dcm4che.org</id>
       <name>dcm4che Repository</name>
-      <url>http://maven.dcm4che.org</url>
+      <url>https://maven.dcm4che.org</url>
     </repository>
     <repository>
       <id>nroduit-mvn-repo-master</id>
@@ -216,7 +216,7 @@
     </repository>
     <repository>
       <id>jboss</id>
-      <url>http://repository.jboss.org/nexus/content/groups/public</url>
+      <url>https://repository.jboss.org/nexus/content/groups/public</url>
     </repository>
   </repositories>
   <dependencyManagement>
