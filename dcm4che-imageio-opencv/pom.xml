@@ -16,9 +16,8 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.weasis.opencv</groupId>
-            <artifactId>weasis-opencv-core</artifactId>
-            <version>${weasis.version}</version>
+            <groupId>org.weasis.core</groupId>
+            <artifactId>weasis-core-img</artifactId>
         </dependency>
     </dependencies>
 </project>

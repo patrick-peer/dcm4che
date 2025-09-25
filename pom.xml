@@ -81,8 +81,11 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <slf4j.version>1.7.29</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
-    <weasis.version>3.5.3</weasis.version>
-    <weasis.opencv.native.version>4.1.1-dcm</weasis.opencv.native.version>
+    <weasis.core.img.version>4.12.1</weasis.core.img.version>
+    <!--
+    <weasis.version>4.12.1</weasis.version>
+    <weasis.opencv.native.version>4.12.1-dcm</weasis.opencv.native.version>
+    -->
     <keycloak.version>8.0.1</keycloak.version>
     <jaxws-tools-maven-plugin.version>1.2.1.Final</jaxws-tools-maven-plugin.version>
     <jbossws-cxf-client.version>5.3.0.Final</jbossws-cxf-client.version>
@@ -208,7 +211,7 @@
     <repository>
       <id>www.dcm4che.org</id>
       <name>dcm4che Repository</name>
-      <url>https://maven.dcm4che.org</url>
+      <url>https://www.dcm4che.org/maven2/</url>
     </repository>
     <repository>
       <id>nroduit-mvn-repo-master</id>
@@ -288,6 +291,18 @@
         <groupId>com.sun.xml.ws</groupId>
         <artifactId>rt</artifactId>
         <version>${jakarta.xml.ws.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.weasis.core</groupId>
+        <artifactId>weasis-core-img-bom</artifactId>
+        <version>${weasis.core.img.version}</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>org.weasis.core</groupId>
+        <artifactId>weasis-core-img</artifactId>
+        <version>${weasis.core.img.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
