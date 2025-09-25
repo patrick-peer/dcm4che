@@ -201,7 +201,7 @@
 <distributionManagement>
   <repository>
     <id>nexus-thirdparty</id>
-    <url>https://javamaster.synedra.lan/nexus/content/repositories/thirdparty</url>
+    <url>http://javamaster.synedra.lan/nexus/content/repositories/thirdparty</url>
   </repository>
 </distributionManagement>
   <repositories>
