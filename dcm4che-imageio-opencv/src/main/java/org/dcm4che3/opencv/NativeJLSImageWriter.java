@@ -120,7 +120,7 @@ class NativeJLSImageWriter extends ImageWriter {
 				JPEGLSImageWriteParam jpegParams = (JPEGLSImageWriteParam) param;
 				int jpeglsNLE = jpegParams.getNearLossless();
 
-                int[] params = new int[15];
+                int[] params = new int[16];
                 params[Imgcodecs.DICOM_PARAM_IMREAD] = Imgcodecs.IMREAD_UNCHANGED; // Image flags
                 params[Imgcodecs.DICOM_PARAM_DCM_IMREAD] = dcmFlags; // DICOM flags
                 params[Imgcodecs.DICOM_PARAM_WIDTH] = mat.width(); // Image width
