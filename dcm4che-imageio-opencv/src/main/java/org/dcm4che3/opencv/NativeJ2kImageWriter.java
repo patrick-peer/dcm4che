@@ -113,12 +113,11 @@ class NativeJ2kImageWriter extends ImageWriter {
                 // So the input image has always a pixel interleaved mode mode((PlanarConfiguration = 0)
                 mat = ImageConversion.toMat(renderedImage, param.getSourceRegion(), false);
 
+				boolean signed = desc.isSigned();
                 int cvType = mat.type();
-                int elemSize = (int) mat.elemSize1();
                 int channels = CvType.channels(cvType);
-                int dcmFlags = CvType.depth(cvType) == CvType.CV_16S ? Imgcodecs.DICOM_FLAG_SIGNED
-                    : Imgcodecs.DICOM_FLAG_UNSIGNED;
 				int epi = channels == 1 ? Imgcodecs.EPI_Monochrome2 : Imgcodecs.EPI_RGB;
+				int dcmFlags = signed ? Imgcodecs.DICOM_FLAG_SIGNED : Imgcodecs.DICOM_FLAG_UNSIGNED;
 
                 int[] params = new int[16];
                 params[Imgcodecs.DICOM_PARAM_IMREAD] = Imgcodecs.IMREAD_UNCHANGED; // Image flags
