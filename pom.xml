@@ -81,7 +81,7 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <slf4j.version>1.7.29</slf4j.version>
     <log4j.version>1.2.17</log4j.version>
-    <weasis.core.img.version>4.12.1</weasis.core.img.version>
+    <weasis.core.img.version>4.12.2</weasis.core.img.version>
     <!--
     <weasis.version>4.12.1</weasis.version>
     <weasis.opencv.native.version>4.12.1-dcm</weasis.opencv.native.version>
