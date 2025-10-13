@@ -38,6 +38,9 @@
 
 package org.dcm4che3.data;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.temporal.Temporal;
 import java.util.Date;
 import java.util.TimeZone;
 
@@ -68,6 +71,10 @@ interface ValueType {
 
     int[] toInts(Object val, boolean bigEndian);
 
+    long toLong(Object val, boolean bigEndian, int valueIndex, long defVal);
+
+    long[] toLongs(Object val, boolean bigEndian);
+
     float toFloat(Object val, boolean bigEndian, int valueIndex, float defVal);
 
     float[] toFloats(Object val, boolean bigEndian);
@@ -76,6 +83,8 @@ interface ValueType {
             double defVal);
 
     double[] toDoubles(Object val, boolean bigEndian);
+
+    Temporal toTemporal(Object val, int valueIndex, DatePrecision precision);
 
     Date toDate(Object val, TimeZone tz, int valueIndex, boolean ceil,
             Date defVal, DatePrecision precision);
@@ -90,6 +99,8 @@ interface ValueType {
     Object toValue(String[] ss, boolean bigEndian);
 
     Object toValue(int[] is, boolean bigEndian);
+
+    Object toValue(long[] is, boolean bigEndian);
 
     Object toValue(float[] fs, boolean bigEndian);
 

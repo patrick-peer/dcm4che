@@ -110,16 +110,17 @@ class NativeJ2kImageWriter extends ImageWriter {
             ImageCV mat = null;
             try {
                 // Band interleaved mode (PlanarConfiguration = 1) is converted to pixel interleaved
-                // So the input image has always a pixel interleaved mode mode((PlanarConfiguration = 0)
-                mat = ImageConversion.toMat(renderedImage, param.getSourceRegion(), false);
+                // So the input image has always a pixel interleaved mode((PlanarConfiguration = 0)
+                boolean signed = desc.isSigned();
+                // J2K codec requires BGR as input color model
+                mat = ImageConversion.toMat(renderedImage, param.getSourceRegion(), true, signed);
 
                 int cvType = mat.type();
-                int elemSize = (int) mat.elemSize1();
                 int channels = CvType.channels(cvType);
-                int dcmFlags = CvType.depth(cvType) == CvType.CV_16S ? Imgcodecs.DICOM_IMREAD_SIGNED
-                    : Imgcodecs.DICOM_IMREAD_UNSIGNED;
+                int epi = channels == 1 ? Imgcodecs.EPI_Monochrome2 : Imgcodecs.EPI_RGB;
+                int dcmFlags = signed ? Imgcodecs.DICOM_FLAG_SIGNED : Imgcodecs.DICOM_FLAG_UNSIGNED;
 
-                int[] params = new int[15];
+                int[] params = new int[16];
                 params[Imgcodecs.DICOM_PARAM_IMREAD] = Imgcodecs.IMREAD_UNCHANGED; // Image flags
                 params[Imgcodecs.DICOM_PARAM_DCM_IMREAD] = dcmFlags; // DICOM flags
                 params[Imgcodecs.DICOM_PARAM_WIDTH] = mat.width(); // Image width
@@ -128,9 +129,8 @@ class NativeJ2kImageWriter extends ImageWriter {
                 params[Imgcodecs.DICOM_PARAM_COMPONENTS] = channels; // Number of components
                 params[Imgcodecs.DICOM_PARAM_BITS_PER_SAMPLE] = desc.getBitsCompressed(); // Bits per sample
                 params[Imgcodecs.DICOM_PARAM_INTERLEAVE_MODE] = Imgcodecs.ILV_SAMPLE; // Interleave mode
-                params[Imgcodecs.DICOM_PARAM_BYTES_PER_LINE] = mat.width() * elemSize; // Bytes per line
-                params[Imgcodecs.DICOM_PARAM_ALLOWED_LOSSY_ERROR] = j2kParams.isCompressionLossless() ? 0 : 1;
-                params[Imgcodecs.DICOM_PARAM_JPEG_QUALITY] = (int) (j2kParams.getCompressionQuality() * 100); // JPEG lossy  quality
+                params[Imgcodecs.DICOM_PARAM_COLOR_MODEL] = epi; // Photometric interpretation
+                params[Imgcodecs.DICOM_PARAM_J2K_COMPRESSION_FACTOR] = j2kParams.getCompressionRatiofactor(); // JPEG-2000 lossy ratio factor
 
                 dicomParams = new MatOfInt(params);
                 buf = Imgcodecs.dicomJpgWrite(mat, dicomParams, "");

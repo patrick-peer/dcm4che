@@ -40,6 +40,8 @@
 
 package org.dcm4che3.conf.json;
 
+import jakarta.json.Json;
+import jakarta.json.stream.JsonGenerator;
 import org.dcm4che3.audit.AuditMessages;
 import org.dcm4che3.audit.EventID;
 import org.dcm4che3.audit.EventTypeCode;
@@ -66,10 +68,7 @@ import org.dcm4che3.net.imageio.ImageReaderExtension;
 import org.dcm4che3.net.imageio.ImageWriterExtension;
 import org.junit.Test;
 
-import javax.json.Json;
-import javax.json.stream.JsonGenerator;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
@@ -240,7 +239,7 @@ public class JsonConfigurationTest {
         assertEquals(1, aeconns.size());
         assertSame(conn, aeconns.get(0));
         assertEquals(3, ae.getTransferCapabilities().size());
-        TransferCapability echoSCP = ae.getTransferCapabilityFor(UID.VerificationSOPClass, TransferCapability.Role.SCP);
+        TransferCapability echoSCP = ae.getTransferCapabilityFor(UID.Verification, TransferCapability.Role.SCP);
         assertNotNull(echoSCP);
         assertArrayEquals(new String[]{ UID.ImplicitVRLittleEndian }, echoSCP.getTransferSyntaxes());
         assertNull(echoSCP.getCommonName());
@@ -254,7 +253,7 @@ public class JsonConfigurationTest {
         assertEquals(StorageOptions.DigitalSignatureSupport.LEVEL_1, storageOptions.getDigitalSignatureSupport());
         assertEquals(StorageOptions.ElementCoercion.YES, storageOptions.getElementCoercion());
         TransferCapability findSCP = ae.getTransferCapabilityFor(
-                UID.StudyRootQueryRetrieveInformationModelFIND, TransferCapability.Role.SCP);
+                UID.StudyRootQueryRetrieveInformationModelFind, TransferCapability.Role.SCP);
         assertNotNull(findSCP);
         assertEquals(EnumSet.of(QueryOption.RELATIONAL), findSCP.getQueryOptions());
         assertImageReaderExtension(device.getDeviceExtension(ImageReaderExtension.class));
@@ -387,7 +386,7 @@ public class JsonConfigurationTest {
     }
 
     private static TransferCapability echoSCP() {
-        return new TransferCapability(null, UID.VerificationSOPClass, TransferCapability.Role.SCP,
+        return new TransferCapability(null, UID.Verification, TransferCapability.Role.SCP,
                 UID.ImplicitVRLittleEndian);
     }
 
@@ -400,7 +399,7 @@ public class JsonConfigurationTest {
 
     private static final TransferCapability findSCP() {
         TransferCapability tc = new TransferCapability(null,
-                UID.StudyRootQueryRetrieveInformationModelFIND, TransferCapability.Role.SCP,
+                UID.StudyRootQueryRetrieveInformationModelFind, TransferCapability.Role.SCP,
                 UID.ImplicitVRLittleEndian);
         tc.setQueryOptions(EnumSet.of(QueryOption.RELATIONAL));
         return tc;

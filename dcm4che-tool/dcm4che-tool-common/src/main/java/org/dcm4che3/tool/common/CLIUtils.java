@@ -38,42 +38,26 @@
 
 package org.dcm4che3.tool.common;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.GeneralSecurityException;
-import java.text.MessageFormat;
-import java.util.EnumMap;
-import java.util.Properties;
-import java.util.ResourceBundle;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.MissingOptionException;
-import org.apache.commons.cli.Option.Builder;
-import org.apache.commons.cli.OptionGroup;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.ParseException;
-import org.dcm4che3.data.Tag;
-import org.dcm4che3.data.UID;
-import org.dcm4che3.data.Attributes;
-import org.dcm4che3.data.ElementDictionary;
-import org.dcm4che3.data.Sequence;
-import org.dcm4che3.data.VR;
+import org.apache.commons.cli.*;
+import org.dcm4che3.data.*;
 import org.dcm4che3.io.BasicBulkDataDescriptor;
 import org.dcm4che3.io.DicomEncodingOptions;
-import org.dcm4che3.net.ApplicationEntity;
-import org.dcm4che3.net.Connection;
-import org.dcm4che3.net.Device;
-import org.dcm4che3.net.Priority;
-import org.dcm4che3.net.SSLManagerFactory;
+import org.dcm4che3.net.*;
 import org.dcm4che3.net.pdu.AAssociateRQ;
 import org.dcm4che3.net.pdu.UserIdentityRQ;
 import org.dcm4che3.util.SafeClose;
 import org.dcm4che3.util.StreamUtils;
 import org.dcm4che3.util.StringUtils;
+import org.slf4j.Logger;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.GeneralSecurityException;
+import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.Properties;
+import java.util.ResourceBundle;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
@@ -99,14 +83,13 @@ public class CLIUtils {
                 .build());
     }
 
-    public static void addBindServerOption(Options opts) {
+    public static void addBindClientOption(Options opts, String defAET) {
         opts.addOption(Option.builder("b")
                 .hasArg()
-                .argName("[aet[@ip]:]port")
-                .desc(rb.getString("bind-server"))
+                .argName("aet[@ip]")
+                .desc(MessageFormat.format(rb.getString("bind-client"), defAET))
                 .longOpt("bind")
                 .build());
-        addRequestTimeoutOption(opts);
     }
 
     public static void addConnectOption(Options opts) {
@@ -122,7 +105,24 @@ public class CLIUtils {
                 .desc(rb.getString("proxy"))
                 .longOpt("proxy")
                 .build());
-        opts.addOption(Option.builder()
+        addUserIdentityOptions(opts);
+        addConnectTimeoutOption(opts);
+        addAcceptTimeoutOption(opts);
+    }
+
+    public static void addBindServerOption(Options opts) {
+        opts.addOption(Option.builder("b")
+                .hasArg()
+                .argName("[aet[@ip]:]port")
+                .desc(rb.getString("bind-server"))
+                .longOpt("bind")
+                .build());
+        addRequestTimeoutOption(opts);
+    }
+
+    private static void addUserIdentityOptions(Options opts) {
+        OptionGroup group = new OptionGroup();
+        group.addOption(Option.builder()
                 .hasArg()
                 .argName("name")
                 .desc(rb.getString("user"))
@@ -130,13 +130,24 @@ public class CLIUtils {
                 .build());
         opts.addOption(Option.builder()
                 .hasArg()
+                .argName("assertion")
+                .desc(rb.getString("user-saml"))
+                .longOpt("user-saml")
+                .build());
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("token")
+                .desc(rb.getString("user-jwt"))
+                .longOpt("user-jwt")
+                .build());
+        opts.addOptionGroup(group);
+        opts.addOption(Option.builder()
+                .hasArg()
                 .argName("password")
                 .desc(rb.getString("user-pass"))
                 .longOpt("user-pass")
                 .build());
         opts.addOption(null, "user-rsp", false, rb.getString("user-rsp"));
-        addConnectTimeoutOption(opts);
-        addAcceptTimeoutOption(opts);
     }
 
     public static void addAEOptions(Options opts) {
@@ -186,6 +197,15 @@ public class CLIUtils {
                 .build());
         addSocketOptions(opts);
         addTLSOptions(opts);
+    }
+    
+    public static void addAcceptedCallingAETs(Options opts) {
+        opts.addOption(Option.builder()
+                .hasArgs()
+                .argName("aet")
+                .desc(rb.getString("accepted-calling-aets"))
+                .longOpt("accept")
+                .build());
     }
 
     public static void addRequestTimeoutOption(Options opts) {
@@ -289,6 +309,8 @@ public class CLIUtils {
         opts.addOption(null, "tls13", false, rb.getString("tls13"));
         opts.addOption(null, "ssl3", false, rb.getString("ssl3"));
         opts.addOption(null, "ssl2Hello", false, rb.getString("ssl2Hello"));
+        opts.addOption(null, "tls-eia-https", false, rb.getString("tls-eia-https"));
+        opts.addOption(null, "tls-eia-ldaps", false, rb.getString("tls-eia-ldaps"));
         opts.addOption(null, "tls-noauth", false, rb.getString("tls-noauth"));
         opts.addOption(Option.builder()
                 .hasArg()
@@ -347,6 +369,14 @@ public class CLIUtils {
         opts.addOption(null, "tls-aes", false, rb.getString("tls-aes"));
     }
 
+    public static void addMLLP2Option(Options opts) {
+        opts.addOption(null, "mllp2", false, rb.getString("mllp2"));
+    }
+
+    public static boolean isMLLP2(CommandLine cl) {
+        return cl.hasOption("mllp2");
+    }
+
     public static void addPriorityOption(Options opts) {
         OptionGroup group = new OptionGroup();
         group.addOption(Option.builder()
@@ -360,7 +390,7 @@ public class CLIUtils {
         opts.addOptionGroup(group);
     }
 
-    public static CommandLine parseComandLine(String[] args, Options opts, 
+    public static CommandLine parseComandLine(String[] args, Options opts,
             ResourceBundle rb2, Class<?> clazz) throws ParseException {
         CommandLineParser parser = new DetectEndOfOptionsPosixParser();
         CommandLine cl = parser.parse(opts, args);
@@ -404,10 +434,21 @@ public class CLIUtils {
 
         if (cl.hasOption("user"))
             rq.setUserIdentityRQ(cl.hasOption("user-pass")
-                    ? new UserIdentityRQ(cl.getOptionValue("user"),
-                            cl.getOptionValue("user-pass").toCharArray())
-                    : new UserIdentityRQ(cl.getOptionValue("user"),
+                    ? UserIdentityRQ.usernamePasscode(
+                            cl.getOptionValue("user"),
+                            cl.getOptionValue("user-pass").toCharArray(),
+                            cl.hasOption("user-rsp"))
+                    : UserIdentityRQ.username(
+                            cl.getOptionValue("user"),
                             cl.hasOption("user-rsp")));
+        else if (cl.hasOption("user-saml"))
+            rq.setUserIdentityRQ(UserIdentityRQ.saml(
+                    cl.getOptionValue("user-saml"),
+                    cl.hasOption("user-rsp")));
+        else if (cl.hasOption("user-jwt"))
+            rq.setUserIdentityRQ(UserIdentityRQ.jwt(
+                    cl.getOptionValue("user-jwt"),
+                    cl.hasOption("user-rsp")));
     }
 
     public static void configureBind(Connection conn,
@@ -458,7 +499,7 @@ public class CLIUtils {
                         ? Priority.LOW
                         : Priority.NORMAL;
     }
-
+    
     public static int getIntOption(CommandLine cl, String opt, int defVal) {
         String optVal = cl.getOptionValue(opt);
         if (optVal == null)
@@ -521,6 +562,14 @@ public class CLIUtils {
         conn.setTcpNoDelay(!cl.hasOption("tcp-delay"));
         configureTLS(conn, cl);
     }
+    
+    public static void configureAcceptedCallingAETitles(ApplicationEntity ae, CommandLine cl, Logger log) {
+        String[] aets = cl.getOptionValues("accept");
+        if (aets != null) {
+            ae.setAcceptedCallingAETitles(aets);
+            log.info("Accepted Calling AE titles are {}.", Arrays.toString(aets));
+        }
+    }
 
     public static boolean configureTLSCipher(Connection conn, CommandLine cl) throws ParseException {
         if (cl.hasOption("tls"))
@@ -562,14 +611,19 @@ public class CLIUtils {
         else if (cl.hasOption("tls-protocol"))
             conn.setTlsProtocols(cl.getOptionValues("tls-protocol"));
 
+        if (cl.hasOption("tls-eia-https"))
+            conn.setTlsEndpointIdentificationAlgorithm(Connection.EndpointIdentificationAlgorithm.HTTPS);
+        else if (cl.hasOption("tls-eia-ldaps"))
+            conn.setTlsEndpointIdentificationAlgorithm(Connection.EndpointIdentificationAlgorithm.LDAPS);
+
         conn.setTlsNeedClientAuth(!cl.hasOption("tls-noauth"));
 
-        String keyStoreURL = cl.getOptionValue("key-store", "resource:key.jks");
-        String keyStoreType =  cl.getOptionValue("key-store-type", "JKS");
+        String keyStoreURL = cl.getOptionValue("key-store", "resource:key.p12");
+        String keyStoreType =  cl.getOptionValue("key-store-type", "PKCS12");
         String keyStorePass = cl.getOptionValue("key-store-pass", "secret");
         String keyPass = cl.getOptionValue("key-pass", keyStorePass);
-        String trustStoreURL = cl.getOptionValue("trust-store", "resource:cacerts.jks");
-        String trustStoreType =  cl.getOptionValue("trust-store-type", "JKS");
+        String trustStoreURL = cl.getOptionValue("trust-store", "resource:cacerts.p12");
+        String trustStoreType =  cl.getOptionValue("trust-store-type", "PKCS12");
         String trustStorePass = cl.getOptionValue("trust-store-pass", "secret");
 
         Device device = conn.getDevice();
@@ -644,7 +698,7 @@ public class CLIUtils {
 
     public static int toTag(String tagOrKeyword) {
         try {
-            return Integer.parseInt(tagOrKeyword, 16);
+            return Integer.parseUnsignedInt(tagOrKeyword, 16);
         } catch (IllegalArgumentException e) {
             int tag = ElementDictionary.tagForKeyword(tagOrKeyword, null);
             if (tag == -1)
@@ -708,17 +762,17 @@ public class CLIUtils {
     private static String[] IVR_LE_FIRST = {
         UID.ImplicitVRLittleEndian,
         UID.ExplicitVRLittleEndian,
-        UID.ExplicitVRBigEndianRetired
+        UID.ExplicitVRBigEndian
     };
 
     private static String[] EVR_LE_FIRST = {
         UID.ExplicitVRLittleEndian,
-        UID.ExplicitVRBigEndianRetired,
+        UID.ExplicitVRBigEndian,
         UID.ImplicitVRLittleEndian
     };
 
     private static String[] EVR_BE_FIRST = {
-        UID.ExplicitVRBigEndianRetired,
+        UID.ExplicitVRBigEndian,
         UID.ExplicitVRLittleEndian,
         UID.ImplicitVRLittleEndian
     };
@@ -751,7 +805,7 @@ public class CLIUtils {
         int tag = tags[tags.length-1];
         VR vr = ElementDictionary.vrOf(tag,
                 item.getPrivateCreator(tag));
-        if (ss.length == 0)
+        if (ss.length == 0 || ss.length == 1 && ss[0].isEmpty())
             if (vr == VR.SQ)
                 item.newSequence(tag, 1).add(new Attributes(0));
             else
@@ -762,24 +816,30 @@ public class CLIUtils {
 
     public static void addAttributes(Attributes attrs, String[] optVals) {
         if (optVals != null)
-            for (int i = 1; i < optVals.length; i++, i++)
-                addAttributes(attrs,
-                        toTags(
-                                StringUtils.split(optVals[i-1], '/')),
-                                optVals[i]);
+            for (String optVal : optVals) {
+                int delim = optVal.indexOf('=');
+                if (delim < 0) {
+                    addAttributes(attrs,
+                            toTags(StringUtils.split(optVal, '.')));
+                } else {
+                    addAttributes(attrs,
+                            toTags(StringUtils.split(optVal.substring(0, delim), '.')),
+                            optVal.substring(delim + 1));
+                }
+            }
     }
 
     public static void addEmptyAttributes(Attributes attrs, String[] optVals) {
         if (optVals != null)
             for (int i = 0; i < optVals.length; i++)
                 addAttributes(attrs,
-                        toTags(StringUtils.split(optVals[i], '/')));
+                        toTags(StringUtils.split(optVals[i], '.')));
     }
 
     public static void addTagPaths(BasicBulkDataDescriptor desc, String[] optVals) {
         if (optVals != null)
             for (int i = 0; i < optVals.length; i++)
-                desc.addTagPath(toTags(StringUtils.split(optVals[i], '/')));
+                desc.addTagPath(toTags(StringUtils.split(optVals[i], '.')));
     }
 
     public static boolean updateAttributes(Attributes data, Attributes attrs,

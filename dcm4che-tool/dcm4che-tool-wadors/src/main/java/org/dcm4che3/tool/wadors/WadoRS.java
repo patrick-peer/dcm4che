@@ -43,20 +43,27 @@ import org.apache.commons.cli.*;
 import org.dcm4che3.mime.MultipartInputStream;
 import org.dcm4che3.mime.MultipartParser;
 import org.dcm4che3.tool.common.CLIUtils;
-import org.dcm4che3.util.*;
+import org.dcm4che3.util.Base64;
+import org.dcm4che3.util.StreamUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import javax.net.ssl.*;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author Vrinda Nayak <vrinda.nayak@j4care.com>
@@ -66,11 +73,13 @@ import org.slf4j.LoggerFactory;
 public class WadoRS {
     private static final Logger LOG = LoggerFactory.getLogger(WadoRS.class);
     private static final ResourceBundle rb = ResourceBundle.getBundle("org.dcm4che3.tool.wadors.messages");
-    private static String user;
-    private static String bearer;
     private static boolean header;
-    private String accept = "*";
+    private static boolean allowAnyHost;
+    private static boolean disableTM;
+    private static String accept = "*";
     private static String outDir;
+    private static String authorization;
+    private static Map<String, String> requestProperties;
 
     public WadoRS() {}
 
@@ -109,6 +118,11 @@ public class WadoRS {
                 .hasArg()
                 .desc(rb.getString("accept"))
                 .build());
+        opts.addOption(Option.builder("H")
+                .hasArg()
+                .argName("httpHeader:value")
+                .desc(rb.getString("httpHeader"))
+                .build());
         opts.addOption(Option.builder()
                 .longOpt("header")
                 .desc(rb.getString("header"))
@@ -118,6 +132,14 @@ public class WadoRS {
                 .hasArg()
                 .argName("directory")
                 .desc(rb.getString("out-dir"))
+                .build());
+        opts.addOption(Option.builder()
+                .longOpt("allowAnyHost")
+                .desc(rb.getString("allowAnyHost"))
+                .build());
+        opts.addOption(Option.builder()
+                .longOpt("disableTM")
+                .desc(rb.getString("disableTM"))
                 .build());
         OptionGroup group = new OptionGroup();
         group.addOption(Option.builder("u")
@@ -140,41 +162,86 @@ public class WadoRS {
         if (cl.getArgList().isEmpty())
             throw new MissingArgumentException("Missing url");
         header = cl.hasOption("header");
+        allowAnyHost = cl.hasOption("allowAnyHost");
+        disableTM = cl.hasOption("disableTM");
         if (cl.hasOption("a"))
             wadoRS.setAccept(cl.getOptionValues("a"));
-        user = cl.getOptionValue("u");
-        bearer = cl.getOptionValue("bearer");
         outDir = cl.getOptionValue("out-dir");
+        authorization = cl.hasOption("u")
+                        ? basicAuth(cl.getOptionValue("u"))
+                        : cl.hasOption("bearer") ? "Bearer " + cl.getOptionValue("bearer") : null;
+        requestProperties = requestProperties(cl.getOptionValues("H"));
     }
 
     private void wado(String url) throws Exception {
         final String uid = uidFrom(url);
         if (!header)
             url = appendAcceptToURL(url);
-        URL newUrl = new URL(url);
-        final HttpURLConnection connection = (HttpURLConnection) newUrl.openConnection();
+        if (url.startsWith("https"))
+            wadoHttps(new URL(url), uid);
+        else
+            wado(new URL(url), uid);
+    }
+
+    private static Map<String, String> requestProperties(String[] httpHeaders) {
+        Map<String, String> requestProperties = new HashMap<>();
+        if (header)
+            requestProperties.put("Accept", accept);
+        if (authorization != null)
+            requestProperties.put("Authorization", authorization);
+        if (httpHeaders != null)
+            for (String httpHeader : httpHeaders) {
+                int delim = httpHeader.indexOf(':');
+                requestProperties.put(httpHeader.substring(0, delim), httpHeader.substring(delim + 1));
+            }
+        return requestProperties;
+    }
+
+    private void wado(URL url, String uid) throws Exception {
+        final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setDoOutput(true);
         connection.setDoInput(true);
         connection.setRequestMethod("GET");
-        if (header)
-            connection.setRequestProperty("Accept", accept);
-        logOutgoing(connection);
-        authorize(connection);
-        logIncoming(connection);
-        unpack(connection, uid);
+        requestProperties.forEach(connection::setRequestProperty);
+        logOutgoing(url, connection.getRequestProperties());
+        processWadoResp(connection, uid);
         connection.disconnect();
     }
 
-    private void authorize(HttpURLConnection connection) {
-        if (user == null && bearer == null)
-            return;
-
-        String authorization = user != null ? basicAuth() : "Bearer " + bearer;
-        LOG.info("> Authorization: " + authorization);
-        connection.setRequestProperty("Authorization", authorization);
+    private void wadoHttps(URL url, String uid) throws Exception {
+        final HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+        connection.setDoOutput(true);
+        connection.setDoInput(true);
+        connection.setRequestMethod("GET");
+        requestProperties.forEach(connection::setRequestProperty);
+        if (disableTM)
+            connection.setSSLSocketFactory(sslContext().getSocketFactory());
+        connection.setHostnameVerifier((hostname, session) -> allowAnyHost);
+        logOutgoing(url, connection.getRequestProperties());
+        processWadoHttpsResp(connection, uid);
+        connection.disconnect();
     }
 
-    private static String basicAuth() {
+    SSLContext sslContext() throws GeneralSecurityException {
+        SSLContext ctx = SSLContext.getInstance("TLS");
+        ctx.init(null, trustManagers(), new java.security.SecureRandom());
+        return ctx;
+    }
+
+    TrustManager[] trustManagers() {
+        return new TrustManager[] { new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+                public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                }
+                public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                }
+            }
+        };
+    }
+    
+    private static String basicAuth(String user) {
         byte[] userPswdBytes = user.getBytes();
         int len = (userPswdBytes.length * 4 / 3 + 3) & ~3;
         char[] ch = new char[len];
@@ -197,35 +264,44 @@ public class WadoRS {
                 : url.substring(url.lastIndexOf('/')+1);
     }
 
-    private void logOutgoing(HttpURLConnection connection) {
-        LOG.info("> " + connection.getRequestMethod() + " " + connection.getURL());
-        LOG.info("> Accept: " + accept);
+    private void logOutgoing(URL url, Map<String, List<String>> headerFields) {
+        LOG.info("> GET " + url.toString());
+        headerFields.forEach((k,v) -> LOG.info("> " + k + " : " + String.join(",", v)));
     }
 
-    private void logIncoming(HttpURLConnection connection) throws Exception {
-        LOG.info("< Content-Length: " + connection.getContentLength());
-        LOG.info("< HTTP/1.1 Response: " + connection.getResponseCode() + " " + connection.getResponseMessage());
-        LOG.info("< Transfer-Encoding: " + connection.getContentEncoding());
-        LOG.info("< ETag: " + connection.getHeaderField("ETag"));
-        LOG.info("< Last-Modified: " + connection.getHeaderField("Last-Modified"));
-        LOG.info("< Content-Type: " + connection.getContentType());
-        LOG.info("< Date: " + connection.getHeaderField("Date"));
-    }
-
-    private void unpack(HttpURLConnection connection, final String uid) throws Exception {
-        if (connection.getResponseCode() != 200 && connection.getResponseCode() != 206) {
-            LOG.info(connection.getResponseMessage() + ": " + connection.getResponseCode());
+    private void processWadoResp(HttpURLConnection connection, String uid) throws Exception {
+        int respCode = connection.getResponseCode();
+        logIncoming(respCode, connection.getResponseMessage(), connection.getHeaderFields());
+        if (respCode != 200 && respCode != 206)
             return;
-        }
 
-        try (InputStream is = connection.getInputStream()) {
-            String contentType = connection.getContentType();
+        unpack(connection.getInputStream(), connection.getContentType(), uid);
+    }
+
+    private void processWadoHttpsResp(HttpsURLConnection connection, String uid) throws Exception {
+        int respCode = connection.getResponseCode();
+        logIncoming(respCode, connection.getResponseMessage(), connection.getHeaderFields());
+        if (respCode != 200 && respCode != 206)
+            return;
+
+        unpack(connection.getInputStream(), connection.getContentType(), uid);
+    }
+
+    private void logIncoming(int respCode, String respMsg, Map<String, List<String>> headerFields) {
+        LOG.info("< HTTP/1.1 Response: " + respCode + " " + respMsg);
+        for (Map.Entry<String, List<String>> header : headerFields.entrySet())
+            if (header.getKey() != null)
+                LOG.info("< " + header.getKey() + " : " + String.join(";", header.getValue()));
+    }
+
+    private void unpack(InputStream is, String contentType, final String uid) {
+        try {
             if (!contentType.contains("multipart/related")) {
                 write(uid, partExtension(contentType), is);
                 return;
             }
 
-            String boundary = boundary(connection);
+            String boundary = boundary(contentType);
             if (boundary == null) {
                 LOG.warn("Invalid response. Unpacking of parts not possible.");
                 return;
@@ -244,6 +320,8 @@ public class WadoRS {
                     }
                 }
             });
+        } catch (Exception e) {
+            LOG.info("Exception caught on unpacking response \n", e);
         }
     }
 
@@ -258,8 +336,8 @@ public class WadoRS {
         return contentType.substring(contentType.lastIndexOf("_") + 1);
     }
 
-    private String boundary(HttpURLConnection connection) {
-        String[] respContentTypeParams = connection.getContentType().split(";");
+    private String boundary(String contentType) {
+        String[] respContentTypeParams = contentType.split(";");
         for (String respContentTypeParam : respContentTypeParams)
             if (respContentTypeParam.replace(" ", "").startsWith("boundary="))
                 return respContentTypeParam

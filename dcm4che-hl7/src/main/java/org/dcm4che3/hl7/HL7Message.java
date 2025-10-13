@@ -134,7 +134,7 @@ public class HL7Message extends ArrayList<HL7Segment> {
         ackmsh.setField(3, msh.getField(5, null));
         ackmsh.setField(4, msh.getField(2, null));
         ackmsh.setField(5, msh.getField(3, null));
-        ackmsh.setField(8, "ACK^" + msh.getMessageType().substring(4,7) + "^ACK");
+        ackmsh.setField(8, "ACK^" + eventType(msh) + "^ACK");
         for (int i = 10; i < size; i++)
             ackmsh.setField(i, msh.getField(i, null));
         HL7Segment msa = new HL7Segment(4, msh.getFieldSeparator(),
@@ -149,6 +149,13 @@ public class HL7Message extends ArrayList<HL7Segment> {
         return ack;
     }
 
+    public static String eventType(HL7Segment msh) {
+        String messageType = msh.getMessageType();
+        return messageType == null || messageType.equals("")
+                ? messageType
+                : messageType.substring(4,7);
+    }
+
     public static HL7Message makePixQuery(String pid, String... domains) {
         HL7Segment msh = HL7Segment.makeMSH();
         msh.setField(8, "QBP^Q23^QBP_Q21");
@@ -157,6 +164,25 @@ public class HL7Message extends ArrayList<HL7Segment> {
         qpd.setField(1, "IHE PIX Query");
         qpd.setField(2, "QRY" + msh.getField(9, ""));
         qpd.setField(3, pid);
+        qpd.setField(4, HL7Segment.concat(domains, '~'));
+        HL7Segment rcp = new HL7Segment(8);
+        rcp.setField(0, "RCP");
+        rcp.setField(1, "I");
+        HL7Message qbp = new HL7Message(3);
+        qbp.add(msh);
+        qbp.add(qpd);
+        qbp.add(rcp);
+        return qbp;
+    }
+
+    public static HL7Message makePdqQuery(String[] queryParams, String... domains) {
+        HL7Segment msh = HL7Segment.makeMSH();
+        msh.setField(8, "QBP^Q22^QBP_Q21");
+        HL7Segment qpd = new HL7Segment(5);
+        qpd.setField(0, "QPD");
+        qpd.setField(1, "IHE PDQ Query");
+        qpd.setField(2, "QRY" + msh.getField(9, ""));
+        qpd.setField(3, HL7Segment.concat(queryParams, '~'));
         qpd.setField(4, HL7Segment.concat(domains, '~'));
         HL7Segment rcp = new HL7Segment(8);
         rcp.setField(0, "RCP");

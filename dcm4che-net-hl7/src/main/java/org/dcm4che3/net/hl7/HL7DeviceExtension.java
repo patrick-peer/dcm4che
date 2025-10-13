@@ -58,6 +58,8 @@ public class HL7DeviceExtension extends DeviceExtension {
     static {
         Connection.registerTCPProtocolHandler(
                 Connection.Protocol.HL7, HL7ProtocolHandler.INSTANCE);
+        Connection.registerTCPProtocolHandler(
+                Connection.Protocol.HL7_MLLP2, HL7ProtocolHandler.INSTANCE);
     }
 
     private final LinkedHashMap<String, HL7Application> hl7apps =
@@ -137,12 +139,12 @@ public class HL7DeviceExtension extends DeviceExtension {
 
     UnparsedHL7Message onMessage(Connection conn, Socket s, UnparsedHL7Message msg) throws HL7Exception {
         HL7Application hl7App = getHL7Application(msg.msh().getReceivingApplicationWithFacility(), true);
-        if (hl7App == null)
+        if (hl7App == null || !hl7App.isInstalled() || !hl7App.getConnections().contains(conn))
             throw new HL7Exception(
                     new ERRSegment(msg.msh())
-                            .setHL7ErrorCode(ERRSegment.TableValueNotFound)
-                            .setErrorLocation(ERRSegment.UnknownReceivingApplication)
-                            .setUserMessage("Receiving Application not recognized"));
+                            .setHL7ErrorCode(ERRSegment.TABLE_VALUE_NOT_FOUND)
+                            .setErrorLocation(ERRSegment.RECEIVING_APPLICATION)
+                            .setUserMessage("Receiving Application and/or Facility not recognized"));
         return hl7App.onMessage(conn, s, msg);
     }
 

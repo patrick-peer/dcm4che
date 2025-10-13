@@ -5,7 +5,7 @@ The hl7pix application queries a PIX Manager for Patient IDs corresponding
 to the specified Patient ID, for all or for a specified list of domains
 using a HL7 V2.5 QBP^Q23 message according IHE ITI-9 Transaction: PIX
 Query.
-<pid> and <domain> shall be formated as HL7 CX data type:
+<pid> and <domain> shall be formatted as HL7 CX data type:
 <pid>: <ID>^^^<namespace ID>&<universal ID>&<universal ID type>
 <domain>: ^^^<namespace ID>&<universal ID>&<universal ID type>
 -
@@ -31,12 +31,14 @@ Options:
                                           password by default
     --key-store <file|url>                file path or URL of key store
                                           containing the private key,
-                                          resource:key.jks by default
+                                          resource:key.p12 by default
     --key-store-pass <password>           password for key store
                                           containing the private key,
                                           'secret' by default
     --key-store-type <storetype>          type of key store containing the
-                                          private key, JKS by default
+                                          private key, PKCS12 by default
+    --mllp2                               use MLLP Release 2 with Commit
+                                          Acknowledgement Block
     --proxy <[user:password@]host:port>   specify host and port of the
                                           HTTP Proxy to tunnel the HL7
                                           connection.
@@ -84,6 +86,12 @@ Options:
                                           specified Cipher Suite. Multiple
                                           Cipher Suites may be enabled by
                                           multiple --tls-cipher options
+    --tls-eia-https                       enable server endpoint
+                                          identification according RFC
+                                          2818: HTTP Over TLS
+    --tls-eia-ldaps                       enable server endpoint
+                                          identification according RFC
+                                          2830: LDAP Extension for TLS
     --tls-noauth                          disable client authentification
                                           for TLS
     --tls-null                            enable TLS connection without
@@ -113,12 +121,12 @@ Options:
                                           --tls-protocol TLSv1.3
     --trust-store <file|url>              file path of key store
                                           containing trusted certificates,
-                                          resource:cacerts.jks by default
+                                          resource:cacerts.p12 by default
     --trust-store-pass <password>         password for key store with
                                           trusted certificates, 'secret'
                                           by default
     --trust-store-type <storetype>        type of key store with trusted
-                                          certificates, JKS by default
+                                          certificates, PKCS12 by default
  -V,--version                             output version information and
                                           exit
 -

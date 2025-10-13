@@ -47,14 +47,23 @@ import java.awt.image.Raster;
 
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.UID;
 import org.dcm4che3.data.VR;
 import org.dcm4che3.util.ByteUtils;
+import org.dcm4che3.util.StringUtils;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
  *
  */
 public class LookupTableFactory {
+
+    private static final String[] XA_XRF_CUIDS = {
+            UID.XRayAngiographicImageStorage,
+            UID.XRayRadiofluoroscopicImageStorage,
+            UID.XRayAngiographicBiPlaneImageStorage
+    };
+    private static final String[] LOG_DISP = { "LOG", "DISP" };
 
     private final StoredValue storedValue;
     private float rescaleSlope = 1;
@@ -71,29 +80,39 @@ public class LookupTableFactory {
         this.storedValue = storedValue;
     }
 
+    public static boolean applyModalityLUT(Attributes attrs) {
+        return !(StringUtils.contains(XA_XRF_CUIDS, attrs.getString(Tag.SOPClassUID))
+                && StringUtils.contains(LOG_DISP, attrs.getString(Tag.PixelIntensityRelationship)));
+    }
+
     public void setModalityLUT(Attributes attrs) {
         rescaleIntercept = attrs.getFloat(Tag.RescaleIntercept, 0);
         rescaleSlope = attrs.getFloat(Tag.RescaleSlope, 1);
+        boolean unsigned = attrs.getInt(Tag.PixelRepresentation, -1) == 0;
         modalityLUT = createLUT(storedValue,
-                attrs.getNestedDataset(Tag.ModalityLUTSequence));
+                attrs.getNestedDataset(Tag.ModalityLUTSequence), unsigned);
     }
 
     public void setPresentationLUT(Attributes attrs) {
+        setPresentationLUT(attrs, false);
+    }
+
+    public void setPresentationLUT(Attributes attrs, boolean ignorePresentationLUTShape) {
         Attributes pLUT = attrs.getNestedDataset(Tag.PresentationLUTSequence);
         if (pLUT != null) {
             int[] desc = pLUT.getInts(Tag.LUTDescriptor);
             if (desc != null && desc.length == 3) {
                 int len = desc[0] == 0 ? 0x10000 : desc[0];
+                boolean unsigned = attrs.getInt(Tag.PixelRepresentation, -1) == 0;
                 presentationLUT = createLUT(new StoredValue.Unsigned(log2(len)), 
                         resetOffset(desc), 
-                        pLUT.getSafeBytes(Tag.LUTData), pLUT.bigEndian());
+                        pLUT.getSafeBytes(Tag.LUTData), pLUT.bigEndian(), unsigned);
             }
         } else {
-            String pShape = attrs.getString(Tag.PresentationLUTShape);
-            inverse = (pShape != null 
-                ? "INVERSE".equals(pShape)
-                : "MONOCHROME1".equals(
-                        attrs.getString(Tag.PhotometricInterpretation)));
+            String pShape;
+            inverse = (ignorePresentationLUTShape || (pShape = attrs.getString(Tag.PresentationLUTShape)) == null
+                    ? "MONOCHROME1".equals(attrs.getString(Tag.PhotometricInterpretation))
+                    : "INVERSE".equals(pShape));
         }
     }
 
@@ -135,10 +154,11 @@ public class LookupTableFactory {
         }
         if (vLUT != null) {
             adjustVOILUTDescriptor(vLUT);
+            boolean unsigned = img.getInt(Tag.PixelRepresentation, -1) == 0;
             voiLUT = createLUT(modalityLUT != null
                           ? new StoredValue.Unsigned(modalityLUT.outBits)
                           : storedValue,
-                      vLUT);
+                      vLUT, unsigned);
         }
     }
 
@@ -157,16 +177,16 @@ public class LookupTableFactory {
         }
     }
 
-    private LookupTable createLUT(StoredValue inBits, Attributes attrs) {
+    private LookupTable createLUT(StoredValue inBits, Attributes attrs, boolean unsigned) {
         if (attrs == null)
             return null;
 
         return createLUT(inBits, attrs.getInts(Tag.LUTDescriptor),
-                attrs.getSafeBytes(Tag.LUTData), attrs.bigEndian());
+                attrs.getSafeBytes(Tag.LUTData), attrs.bigEndian(), unsigned);
     }
 
     private LookupTable createLUT(StoredValue inBits, int[] desc, byte[] data,
-            boolean bigEndian) {
+            boolean bigEndian, boolean unsigned) {
 
         if (desc == null)
             return null;
@@ -175,7 +195,7 @@ public class LookupTableFactory {
             return null;
 
         int len = desc[0] == 0 ? 0x10000 : desc[0];
-        int offset = (short) desc[1];
+        int offset = unsigned ? desc[1] & 0xFFFF : (short)desc[1];
         int outBits = desc[2];
         if (data == null)
             return null;
@@ -249,16 +269,32 @@ public class LookupTableFactory {
             StoredValue inBits = modalityLUT != null
                     ? new StoredValue.Unsigned(modalityLUT.outBits)
                     : storedValue;
+            int minOut = 0;
+            int maxOut = (1<<outBits)-1;
             if (w != 0) {
-                size = Math.max(2,Math.abs(Math.round(w/m)));
-                offset = Math.round((c-b)/m) - size/2;
+                float M = Math.abs(m);
+                size = Math.max(2,Math.round(w/M));
+                offset = Math.round((c-w/2-b)/M);
+                int minIndex = inBits.minValue() - offset;
+                int maxIndex = inBits.maxValue() - offset;
+                int size_1 = size - 1;
+                int midIndex = size_1 / 2;
+                if (minIndex > 0) {
+                    offset += minIndex;
+                    size -= minIndex;
+                    minOut = (minIndex * maxOut + midIndex) / size_1;
+                }
+                if (maxIndex < size_1) {
+                    size -= size_1 - maxIndex;
+                    maxOut = (maxIndex * maxOut + midIndex) / size_1;
+                }
             } else {
                 offset = inBits.minValue();
                 size = inBits.maxValue() - inBits.minValue() + 1;
             }
             lut = outBits > 8
-                    ? new ShortLookupTable(inBits, outBits, offset, size, m < 0)
-                    : new ByteLookupTable(inBits, outBits, offset, size, m < 0);
+                    ? new ShortLookupTable(inBits, outBits, minOut, maxOut, offset, size, m < 0)
+                    : new ByteLookupTable(inBits, outBits, minOut, maxOut, offset, size, m < 0);
         } else {
             //TODO consider m+b
             lut = lut.adjustOutBits(outBits);
@@ -267,12 +303,22 @@ public class LookupTableFactory {
     }
 
     public boolean autoWindowing(Attributes img, Raster raster) {
+        return autoWindowing(img, raster, false);
+    }
+
+    public boolean autoWindowing(Attributes img, Raster raster, boolean addAutoWindow) {
         if (modalityLUT != null || voiLUT != null || windowWidth != 0)
             return false;
 
         int[] min_max = calcMinMax(raster);
+        if (min_max[0] == min_max[1])
+        	return false;
         windowCenter = (min_max[0] + min_max[1] + 1) / 2 * rescaleSlope + rescaleIntercept;
         windowWidth = Math.abs((min_max[1] + 1 - min_max[0]) * rescaleSlope);
+        if (addAutoWindow) {
+            img.setFloat(Tag.WindowCenter, VR.DS, windowCenter);
+            img.setFloat(Tag.WindowWidth, VR.DS, windowWidth);
+        }
         return true;
     }
 

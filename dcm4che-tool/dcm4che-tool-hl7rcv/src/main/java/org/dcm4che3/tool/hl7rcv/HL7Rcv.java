@@ -59,11 +59,11 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamSource;
 import java.io.*;
-import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URL;
 import java.util.Date;
 import java.util.ResourceBundle;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -87,6 +87,9 @@ public class HL7Rcv {
     private String charset;
     private Templates tpls;
     private String[] xsltParams;
+    private boolean useUUIDForFilename;
+    private int responseDelay;
+
     private final HL7MessageListener handler = new HL7MessageListener() {
 
         @Override
@@ -129,10 +132,15 @@ public class HL7Rcv {
         this.charset = charset;
     }
 
+    public void setUseUUIDForFilename(boolean useUUIDForFilename) {
+        this.useUUIDForFilename = useUUIDForFilename;
+    }
+
     private static CommandLine parseComandLine(String[] args)
             throws ParseException {
         Options opts = new Options();
         addOptions(opts);
+        CLIUtils.addMLLP2Option(opts);
         CLIUtils.addSocketOptions(opts);
         CLIUtils.addTLSOptions(opts);
         CLIUtils.addCommonOptions(opts);
@@ -142,6 +150,7 @@ public class HL7Rcv {
     @SuppressWarnings("static-access")
     public static void addOptions(Options opts) {
         opts.addOption(null, "ignore", false, rb.getString("ignore"));
+        opts.addOption(null, "uuid", false, rb.getString("uuid"));
         opts.addOption(Option.builder()
                 .hasArg()
                 .argName("path")
@@ -179,6 +188,12 @@ public class HL7Rcv {
                 .desc(rb.getString("idle-timeout"))
                 .longOpt("idle-timeout")
                 .build());
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("ms")
+                .desc(rb.getString("response-delay"))
+                .longOpt("response-delay")
+                .build());
     }
 
     public static void main(String[] args) {
@@ -204,8 +219,8 @@ public class HL7Rcv {
     }
 
     private static void configure(HL7Rcv main, CommandLine cl)
-            throws Exception, MalformedURLException, ParseException,
-            IOException {
+            throws Exception {
+        main.setUseUUIDForFilename(cl.hasOption("uuid"));
         if (!cl.hasOption("ignore"))
             main.setStorageDirectory(
                     cl.getOptionValue("directory", "."));
@@ -215,6 +230,8 @@ public class HL7Rcv {
             main.setXSLTParameters(cl.getOptionValues("xsl-param"));
         }
         main.setCharacterSet(cl.getOptionValue("charset"));
+        main.responseDelay = CLIUtils.getIntOption(cl, "response-delay", 0);
+        main.conn.setProtocol(CLIUtils.isMLLP2(cl) ? Protocol.HL7_MLLP2 : Protocol.HL7);
         configureBindServer(main.conn, cl);
         CLIUtils.configure(main.conn, cl);
     }
@@ -237,8 +254,16 @@ public class HL7Rcv {
             if (storageDir != null)
                 storeToFile(msg.data(), new File(
                             new File(storageDir, msg.msh().getMessageType()),
-                                msg.msh().getField(9, "_NULL_")));
-            return new UnparsedHL7Message(tpls == null
+                                    useUUIDForFilename
+                                            ? UUID.randomUUID().toString()
+                                            : msg.msh().getField(9, "_NULL_")));
+            if (responseDelay > 0)
+                try {
+                    Thread.sleep(responseDelay);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+        return new UnparsedHL7Message(tpls == null
                 ? HL7Message.makeACK(msg.msh(), HL7Exception.AA, null).getBytes(null)
                 : xslt(msg));
     }

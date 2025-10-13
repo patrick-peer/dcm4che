@@ -8,6 +8,9 @@ receive DICOM images and other DICOM Composite Objects. The storescp
 application also supports the Verification Service Class as a SCP.
 -
 Options:
+    --accept <aet>                   One ore more AE Title(s) that SCP
+                                     should accept. By default SCP accepts
+                                     any calling AE title.
     --accept-unknown                 accept unknown SOP Class; otherwise
                                      only Storage SOP Classes specified by
                                      resource:sop-classes.properties or
@@ -51,11 +54,11 @@ Options:
                                      default
     --key-store <file|url>           file path or URL of key store
                                      containing the private key,
-                                     resource:key.jks by default
+                                     resource:key.p12 by default
     --key-store-pass <password>      password for key store containing the
                                      private key, 'secret' by default
     --key-store-type <storetype>     type of key store containing the
-                                     private key, JKS by default
+                                     private key, PKCS12 by default
     --max-ops-invoked <no>           maximum number of operations this AE
                                      may invoke asynchronously, unlimited
                                      by default
@@ -90,6 +93,12 @@ Options:
                                      default.
     --release-timeout <ms>           timeout in ms for receiving
                                      A-RELEASE-RP, no timeout by default
+    --rename-retries <count>         The amount of retries to perform if
+                                     M-RENAME stage fails. 3 retries by
+                                     default.
+    --rename-retry-jitter <ms>       The maximal random jitter inserted
+                                     between M-RENAME retires. 50ms by
+                                     default.
     --request-timeout <ms>           timeout in ms for receiving
                                      A-ASSOCIATE-RQ, no timeout by default
     --response-delay <ms>            delay in ms returning C-STORE-RSPs.
@@ -143,6 +152,11 @@ Options:
                                      Cipher Suite. Multiple Cipher Suites
                                      may be enabled by multiple
                                      --tls-cipher options
+    --tls-eia-https                  enable server endpoint identification
+                                     according RFC 2818: HTTP Over TLS
+    --tls-eia-ldaps                  enable server endpoint identification
+                                     according RFC 2830: LDAP Extension
+                                     for TLS
     --tls-noauth                     disable client authentification for
                                      TLS
     --tls-null                       enable TLS connection without
@@ -165,11 +179,11 @@ Options:
                                      equivalent to --tls-protocol TLSv1.3
     --trust-store <file|url>         file path of key store containing
                                      trusted certificates,
-                                     resource:cacerts.jks by default
+                                     resource:cacerts.p12 by default
     --trust-store-pass <password>    password for key store with trusted
                                      certificates, 'secret' by default
     --trust-store-type <storetype>   type of key store with trusted
-                                     certificates, JKS by default
+                                     certificates, PKCS12 by default
  -V,--version                        output version information and exit
 -
 Example: storescp -b STORESCP:11112

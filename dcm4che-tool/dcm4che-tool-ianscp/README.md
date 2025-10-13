@@ -9,6 +9,9 @@ N-CREATE requests are stored in DICOM files.ianscp application also
 supports the Verification Service Class as a SCP.
 -
 Options:
+    --accept <aet>                   One ore more AE Title(s) that SCP
+                                     should accept. By default SCP accepts
+                                     any calling AE title.
  -b,--bind <[aet[@ip]:]port>         specify the port on which the
                                      Application Entity shall listening
                                      for incoming association requests. If
@@ -32,11 +35,11 @@ Options:
                                      default
     --key-store <file|url>           file path or URL of key store
                                      containing the private key,
-                                     resource:key.jks by default
+                                     resource:key.p12 by default
     --key-store-pass <password>      password for key store containing the
                                      private key, 'secret' by default
     --key-store-type <storetype>     type of key store containing the
-                                     private key, JKS by default
+                                     private key, PKCS12 by default
     --max-ops-invoked <no>           maximum number of operations this AE
                                      may invoke asynchronously, unlimited
                                      by default
@@ -112,6 +115,11 @@ Options:
                                      Cipher Suite. Multiple Cipher Suites
                                      may be enabled by multiple
                                      --tls-cipher options
+    --tls-eia-https                  enable server endpoint identification
+                                     according RFC 2818: HTTP Over TLS
+    --tls-eia-ldaps                  enable server endpoint identification
+                                     according RFC 2830: LDAP Extension
+                                     for TLS
     --tls-noauth                     disable client authentification for
                                      TLS
     --tls-null                       enable TLS connection without
@@ -134,11 +142,11 @@ Options:
                                      equivalent to --tls-protocol TLSv1.3
     --trust-store <file|url>         file path of key store containing
                                      trusted certificates,
-                                     resource:cacerts.jks by default
+                                     resource:cacerts.p12 by default
     --trust-store-pass <password>    password for key store with trusted
                                      certificates, 'secret' by default
     --trust-store-type <storetype>   type of key store with trusted
-                                     certificates, JKS by default
+                                     certificates, PKCS12 by default
  -V,--version                        output version information and exit
 -
 Example: ianscp -b IANSCP:11112

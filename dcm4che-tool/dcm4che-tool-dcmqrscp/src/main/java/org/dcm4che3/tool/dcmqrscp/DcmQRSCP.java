@@ -181,7 +181,7 @@ public class DcmQRSCP {
     private final class StgCmtSCPImpl extends AbstractDicomService {
 
         public StgCmtSCPImpl() {
-            super(UID.StorageCommitmentPushModelSOPClass);
+            super(UID.StorageCommitmentPushModel);
         }
 
         @Override
@@ -399,7 +399,7 @@ public class DcmQRSCP {
         DicomInputStream in = new DicomInputStream(file);
         try {
             in.setIncludeBulkData(IncludeBulkData.NO);
-            return in.readDataset(-1, Tag.PixelData);
+            return in.readDatasetUntilPixelData();
         } finally {
             SafeClose.close(in);
         }
@@ -420,43 +420,43 @@ public class DcmQRSCP {
         serviceRegistry.addDicomService(new StgCmtSCPImpl());
         serviceRegistry.addDicomService(
                 new CFindSCPImpl(
-                        UID.PatientRootQueryRetrieveInformationModelFIND,
+                        UID.PatientRootQueryRetrieveInformationModelFind,
                         PATIENT_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CFindSCPImpl(
-                        UID.StudyRootQueryRetrieveInformationModelFIND,
+                        UID.StudyRootQueryRetrieveInformationModelFind,
                         STUDY_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CFindSCPImpl(
-                        UID.PatientStudyOnlyQueryRetrieveInformationModelFINDRetired,
+                        UID.PatientStudyOnlyQueryRetrieveInformationModelFind,
                         PATIENT_STUDY_ONLY_LEVELS));
         serviceRegistry.addDicomService(
                 new CGetSCPImpl(
-                        UID.PatientRootQueryRetrieveInformationModelGET,
+                        UID.PatientRootQueryRetrieveInformationModelGet,
                         PATIENT_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CGetSCPImpl(
-                        UID.StudyRootQueryRetrieveInformationModelGET,
+                        UID.StudyRootQueryRetrieveInformationModelGet,
                         STUDY_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CGetSCPImpl(
-                        UID.PatientStudyOnlyQueryRetrieveInformationModelGETRetired,
+                        UID.PatientStudyOnlyQueryRetrieveInformationModelGet,
                         PATIENT_STUDY_ONLY_LEVELS));
         serviceRegistry.addDicomService(
                 new CGetSCPImpl(
-                        UID.CompositeInstanceRetrieveWithoutBulkDataGET,
+                        UID.CompositeInstanceRetrieveWithoutBulkDataGet,
                         EnumSet.of(QueryRetrieveLevel2.IMAGE)));
         serviceRegistry.addDicomService(
                 new CMoveSCPImpl(
-                        UID.PatientRootQueryRetrieveInformationModelMOVE,
+                        UID.PatientRootQueryRetrieveInformationModelMove,
                         PATIENT_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CMoveSCPImpl(
-                        UID.StudyRootQueryRetrieveInformationModelMOVE,
+                        UID.StudyRootQueryRetrieveInformationModelMove,
                         STUDY_ROOT_LEVELS));
         serviceRegistry.addDicomService(
                 new CMoveSCPImpl(
-                        UID.PatientStudyOnlyQueryRetrieveInformationModelMOVERetired,
+                        UID.PatientStudyOnlyQueryRetrieveInformationModelMove,
                         PATIENT_STUDY_ONLY_LEVELS));
         return serviceRegistry ;
     }
@@ -605,6 +605,7 @@ public class DcmQRSCP {
         CLIUtils.addConnectTimeoutOption(opts);
         CLIUtils.addAcceptTimeoutOption(opts);
         CLIUtils.addAEOptions(opts);
+        CLIUtils.addAcceptedCallingAETs(opts);
         CLIUtils.addCommonOptions(opts);
         CLIUtils.addSendTimeoutOption(opts);
         CLIUtils.addStoreTimeoutOption(opts);
@@ -759,6 +760,7 @@ public class DcmQRSCP {
             CLIUtils.configure(main.fsInfo, cl);
             CLIUtils.configureBindServer(main.conn, main.ae, cl);
             CLIUtils.configure(main.conn, cl);
+            CLIUtils.configureAcceptedCallingAETitles(main.ae, cl, LOG);
             configureDicomFileSet(main, cl);
             configureTransferCapability(main, cl);
             configureInstanceAvailability(main, cl);
@@ -789,7 +791,7 @@ public class DcmQRSCP {
             System.exit(2);
         }
     }
-
+    
     private static void configureRelationalLenient(DcmQRSCP main, CommandLine cl) {
         main.setRelationalLenient(cl.hasOption("relational-lenient"));
     }
@@ -857,7 +859,7 @@ public class DcmQRSCP {
         } else {
             ae.addTransferCapability(
                     new TransferCapability(null, 
-                            UID.VerificationSOPClass,
+                            UID.Verification,
                             TransferCapability.Role.SCP,
                             UID.ImplicitVRLittleEndian));
             Properties storageSOPClasses = CLIUtils.loadProperties(

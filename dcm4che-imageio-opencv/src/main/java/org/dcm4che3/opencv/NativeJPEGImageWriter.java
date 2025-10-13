@@ -41,6 +41,7 @@
 
 package org.dcm4che3.opencv;
 
+import java.awt.image.DataBuffer;
 import java.awt.image.RenderedImage;
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -62,6 +63,8 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfInt;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.osgi.OpenCVNativeLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.weasis.opencv.data.ImageCV;
 import org.weasis.opencv.op.ImageConversion;
 
@@ -75,6 +78,7 @@ class NativeJPEGImageWriter extends ImageWriter {
         OpenCVNativeLoader loader = new OpenCVNativeLoader();
         loader.init();
     }
+    private static final Logger LOGGER = LoggerFactory.getLogger(NativeJPEGImageWriter.class);
 
     NativeJPEGImageWriter(ImageWriterSpi originatingProvider) throws IOException {
         super(originatingProvider);
@@ -124,22 +128,28 @@ class NativeJPEGImageWriter extends ImageWriter {
                 mat = ImageConversion.toMat(renderedImage, param.getSourceRegion(), false);
 
                 int cvType = mat.type();
-                int elemSize = (int) mat.elemSize1();
                 int channels = CvType.channels(cvType);
-                int dcmFlags = CvType.depth(cvType) == CvType.CV_16S ? Imgcodecs.DICOM_IMREAD_SIGNED
-                    : Imgcodecs.DICOM_IMREAD_UNSIGNED;
+                boolean signed = desc.isSigned();
+                int dcmFlags = signed ? Imgcodecs.DICOM_FLAG_SIGNED : Imgcodecs.DICOM_FLAG_UNSIGNED;
+                int bitCompressed = desc.getBitsCompressed();
+                if(signed && jpegParams.getPrediction() > 1) {
+                    LOGGER.warn("Force JPEGLosslessNonHierarchical14 compression to 16-bit with signed data.");
+                    bitCompressed = 16;
+                }
+                // Specific case not well supported by jpeg and jpeg-ls encoder that reduce the stream to 8-bit
+                if(bitCompressed == 8 && renderedImage.getSampleModel().getTransferType() != DataBuffer.TYPE_BYTE){
+                    bitCompressed = 12;
+                }
 
-                int[] params = new int[15];
+                int[] params = new int[16];
                 params[Imgcodecs.DICOM_PARAM_IMREAD] = Imgcodecs.IMREAD_UNCHANGED; // Image flags
                 params[Imgcodecs.DICOM_PARAM_DCM_IMREAD] = dcmFlags; // DICOM flags
                 params[Imgcodecs.DICOM_PARAM_WIDTH] = mat.width(); // Image width
                 params[Imgcodecs.DICOM_PARAM_HEIGHT] = mat.height(); // Image height
                 params[Imgcodecs.DICOM_PARAM_COMPRESSION] = Imgcodecs.DICOM_CP_JPG; // Type of compression
                 params[Imgcodecs.DICOM_PARAM_COMPONENTS] = channels; // Number of components
-                params[Imgcodecs.DICOM_PARAM_BITS_PER_SAMPLE] = desc.getBitsCompressed(); // Bits per sample
+                params[Imgcodecs.DICOM_PARAM_BITS_PER_SAMPLE] = bitCompressed; // Bits per sample
                 params[Imgcodecs.DICOM_PARAM_INTERLEAVE_MODE] = Imgcodecs.ILV_SAMPLE; // Interleave mode
-                params[Imgcodecs.DICOM_PARAM_BYTES_PER_LINE] = mat.width() * elemSize; // Bytes per line
-                params[Imgcodecs.DICOM_PARAM_ALLOWED_LOSSY_ERROR] = 0; // Allowed lossy error for jpeg-ls
                 params[Imgcodecs.DICOM_PARAM_COLOR_MODEL] = epi; // Photometric interpretation
                 params[Imgcodecs.DICOM_PARAM_JPEG_MODE] = jpegParams.getMode(); // JPEG Codec mode
                 params[Imgcodecs.DICOM_PARAM_JPEG_QUALITY] = (int) (jpegParams.getCompressionQuality() * 100); // JPEG lossy quality

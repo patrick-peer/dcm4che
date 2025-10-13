@@ -42,7 +42,7 @@
   <parent>
     <artifactId>dcm4che-parent</artifactId>
     <groupId>org.dcm4che</groupId>
-    <version>5.21.0_syn5</version>
+    <version>5.34.2</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.dcm4che.tool</groupId>
@@ -51,6 +51,8 @@
   <name>dcm4che-tool</name>
   <description>DICOM utilities</description>
   <modules>
+    <module>dcm4che-tool-agfa2dcm</module>
+    <module>dcm4che-tool-agfa2sr</module>
     <module>dcm4che-tool-common</module>
     <module>dcm4che-tool-dcm2dcm</module>
     <module>dcm4che-tool-dcm2jpg</module>
@@ -58,8 +60,10 @@
     <module>dcm4che-tool-dcm2pdf</module>
     <module>dcm4che-tool-dcm2str</module>
     <module>dcm4che-tool-dcm2xml</module>
-    <module>dcm4che-tool-dcmdump</module>
+    <module>dcm4che-tool-dcmassoc</module>
+    <module>dcm4che-tool-dcmbenchmark</module>
     <module>dcm4che-tool-dcmdir</module>
+    <module>dcm4che-tool-dcmdump</module>
     <module>dcm4che-tool-dcmldap</module>
     <module>dcm4che-tool-dcmqrscp</module>
     <module>dcm4che-tool-dcmvalidate</module>
@@ -69,6 +73,7 @@
     <module>dcm4che-tool-fixlo2un</module>
     <module>dcm4che-tool-getscu</module>
     <module>dcm4che-tool-hl72xml</module>
+    <module>dcm4che-tool-hl7pdq</module>
     <module>dcm4che-tool-hl7pix</module>
     <module>dcm4che-tool-hl7rcv</module>
     <module>dcm4che-tool-hl7snd</module>
@@ -78,24 +83,31 @@
     <module>dcm4che-tool-jpg2dcm</module>
     <module>dcm4che-tool-json2dcm</module>
     <module>dcm4che-tool-json2index</module>
+    <module>dcm4che-tool-json2props</module>
     <module>dcm4che-tool-json2rst</module>
+    <module>dcm4che-tool-maskpxdata</module>
     <module>dcm4che-tool-mkkos</module>
     <module>dcm4che-tool-movescu</module>
     <module>dcm4che-tool-mppsscp</module>
     <module>dcm4che-tool-mppsscu</module>
     <module>dcm4che-tool-pdf2dcm</module>
+    <module>dcm4che-tool-planarconfig</module>
+    <module>dcm4che-tool-qstar</module>
     <module>dcm4che-tool-stgcmtscu</module>
     <module>dcm4che-tool-storescp</module>
     <module>dcm4che-tool-storescu</module>
     <module>dcm4che-tool-stowrs</module>
+    <module>dcm4che-tool-stowrsd</module>
     <module>dcm4che-tool-swappxdata</module>
     <module>dcm4che-tool-syslog</module>
     <module>dcm4che-tool-syslogd</module>
+    <module>dcm4che-tool-tpl2xml</module>
     <module>dcm4che-tool-upsscu</module>
     <module>dcm4che-tool-wadors</module>
     <module>dcm4che-tool-wadows</module>
     <module>dcm4che-tool-xml2dcm</module>
     <module>dcm4che-tool-xml2hl7</module>
+    <module>dcm4che-tool-xroad</module>
   </modules>
   <build>
     <plugins>

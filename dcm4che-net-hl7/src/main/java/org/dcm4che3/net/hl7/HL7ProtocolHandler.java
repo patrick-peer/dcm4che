@@ -40,10 +40,9 @@ package org.dcm4che3.net.hl7;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.net.SocketException;
 
-import org.dcm4che3.hl7.HL7Exception;
-import org.dcm4che3.hl7.HL7Message;
-import org.dcm4che3.hl7.MLLPConnection;
+import org.dcm4che3.hl7.*;
 import org.dcm4che3.net.Connection;
 import org.dcm4che3.net.TCPProtocolHandler;
 import org.slf4j.Logger;
@@ -76,11 +75,14 @@ enum HL7ProtocolHandler implements TCPProtocolHandler {
         }
 
         public void run() {
+            int messageCount = 0;
             try {
                 s.setSoTimeout(conn.getIdleTimeout());
-                MLLPConnection mllp = new MLLPConnection(s);
+                MLLPConnection mllp = new MLLPConnection(s,
+                        conn.getProtocol() == Connection.Protocol.HL7_MLLP2 ? MLLPRelease.MLLP2 : MLLPRelease.MLLP1);
                 byte[] data;
                 while ((data = mllp.readMessage()) != null) {
+                    messageCount++;
                     HL7ConnectionMonitor monitor = hl7dev.getHL7ConnectionMonitor();
                     UnparsedHL7Message msg = new UnparsedHL7Message(data);
                     if (monitor != null)
@@ -88,9 +90,10 @@ enum HL7ProtocolHandler implements TCPProtocolHandler {
                     UnparsedHL7Message rsp;
                     try {
                         rsp = hl7dev.onMessage(conn, s, msg);
-                    if (monitor != null)
-                        monitor.onMessageProcessed(conn, s, msg, rsp, null);
+                        if (monitor != null)
+                            monitor.onMessageProcessed(conn, s, msg, rsp, null);
                     } catch (HL7Exception e) {
+                        LOG.info("{}: failed to process {}:\n", s, msg, e);
                         rsp = new UnparsedHL7Message(
                                 HL7Message.makeACK(msg.msh(), e).getBytes(null));
                         if (monitor != null)
@@ -99,7 +102,10 @@ enum HL7ProtocolHandler implements TCPProtocolHandler {
                     mllp.writeMessage(rsp.data());
                 }
             } catch (IOException e) {
-                LOG.warn("Exception on accepted connection {}:", s, e);
+                if (e instanceof SocketException && messageCount == 0)
+                    LOG.info("Exception on accepted connection {}: {}", s, e.toString());
+                else
+                    LOG.warn("Exception on accepted connection {}:", s, e);
             } finally {
                 conn.close(s);
             }

@@ -39,12 +39,12 @@
 package org.dcm4che3.data;
 
 import java.io.Serializable;
+import java.util.Objects;
 
-import org.dcm4che3.data.Tag;
 import org.dcm4che3.util.StringUtils;
 
 /**
- * @author Gunter Zeilinger <gunterze@gmail.com>
+ * @author Gunter Zeilinger (gunterze@protonmail.com)
  */
 public class Issuer implements Serializable {
 
@@ -70,9 +70,9 @@ public class Issuer implements Serializable {
         String[] ss = StringUtils.split(s, delim);
         if (ss.length > 3)
             throw new IllegalArgumentException(s);
-        this.localNamespaceEntityID = emptyToNull(ss[0]);
-        this.universalEntityID = ss.length > 1 ? emptyToNull(ss[1]) : null;
-        this.universalEntityIDType = ss.length > 2 ? emptyToNull(ss[2]) : null;
+        this.localNamespaceEntityID = unescapeHL7Separators(ss[0]);
+        this.universalEntityID = ss.length > 1 ? unescapeHL7Separators(ss[1]) : null;
+        this.universalEntityIDType = ss.length > 2 ? unescapeHL7Separators(ss[2]) : null;
         validate();
     }
 
@@ -135,8 +135,8 @@ public class Issuer implements Serializable {
         }
     }
 
-    private String emptyToNull(String s) {
-        return s.isEmpty() ? null : s;
+    private static String unescapeHL7Separators(String s) {
+        return s.isEmpty() ? null : HL7Separator.unescapeAll(s);
     }
 
     public final String getLocalNamespaceEntityID() {
@@ -152,7 +152,7 @@ public class Issuer implements Serializable {
     }
 
     public boolean merge(Issuer other) {
-        if (!matches(other))
+        if (!matches(other, true, true))
             throw new IllegalArgumentException("other=" + other);
 
         boolean mergeLocalNamespace;
@@ -188,30 +188,37 @@ public class Issuer implements Serializable {
         if (!(o instanceof Issuer))
             return false;
         Issuer other = (Issuer) o;
-        return equals(localNamespaceEntityID, other.localNamespaceEntityID)
-                && equals(universalEntityID, other.universalEntityID)
-                && equals(universalEntityIDType, other.universalEntityIDType);
+        return equals(localNamespaceEntityID, other.getLocalNamespaceEntityID())
+                && equals(universalEntityID, other.getUniversalEntityID())
+                && equals(universalEntityIDType, other.getUniversalEntityIDType());
     }
 
     private boolean equals(String s1, String s2) {
-        return s1 == s2 || s1 != null && s1.equals(s2);
+        return Objects.equals(s1, s2);
     }
 
     public boolean matches(Issuer other) {
-        if (this == other || other == null)
+        return matches(other, true, false);
+    }
+
+    public boolean matches(Issuer other, boolean matchNoIssuer, boolean matchOnNoMismatch) {
+        if (this == other)
             return true;
 
-        boolean matchLocal = localNamespaceEntityID != null
-                && other.localNamespaceEntityID != null;
-        boolean matchUniversal = universalEntityID != null
-                && other.universalEntityID != null;
+        if (other == null)
+            return matchNoIssuer;
 
-        return (matchLocal || matchUniversal)
-            && (!matchLocal
-                || localNamespaceEntityID.equals(other.localNamespaceEntityID))
+        boolean matchLocal = localNamespaceEntityID != null
+                && other.getLocalNamespaceEntityID() != null;
+        boolean matchUniversal = universalEntityID != null
+                && other.getUniversalEntityID() != null;
+
+        return !matchLocal && !matchUniversal ? matchOnNoMismatch
+            : (!matchLocal
+                || localNamespaceEntityID.equals(other.getLocalNamespaceEntityID()))
             && (!matchUniversal
-                || universalEntityID.equals(other.universalEntityID)
-                && universalEntityIDType.equals(other.universalEntityIDType));
+                || universalEntityID.equals(other.getUniversalEntityID())
+                && universalEntityIDType.equals(other.getUniversalEntityIDType()));
     }
 
     @Override
@@ -221,14 +228,14 @@ public class Issuer implements Serializable {
 
     public String toString(char delim) {
         if (universalEntityID == null)
-            return localNamespaceEntityID;
+            return HL7Separator.escapeAll(localNamespaceEntityID);
         StringBuilder sb = new StringBuilder();
         if (localNamespaceEntityID != null)
-            sb.append(localNamespaceEntityID);
+            sb.append(HL7Separator.escapeAll(localNamespaceEntityID));
         sb.append(delim);
-        sb.append(universalEntityID);
+        sb.append(HL7Separator.escapeAll(universalEntityID));
         sb.append(delim);
-        sb.append(universalEntityIDType);
+        sb.append(HL7Separator.escapeAll(universalEntityIDType));
         return sb.toString();
     }
 

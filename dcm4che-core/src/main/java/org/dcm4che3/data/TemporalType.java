@@ -38,6 +38,9 @@
 
 package org.dcm4che3.data;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.temporal.Temporal;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
@@ -50,11 +53,16 @@ import org.dcm4che3.util.DateUtils;
  */
 enum TemporalType {
     DA {
+        @Override public Temporal parseTemporal(String s, DatePrecision precision) {
+            precision.lastField = Calendar.DAY_OF_MONTH;
+            return DateUtils.parseLocalDA(s);
+        }
+
         @Override
         public Date parse(TimeZone tz, String s, boolean ceil,
                 DatePrecision precision) {
             precision.lastField = Calendar.DAY_OF_MONTH;
-            return DateUtils.parseDA(tz, s, ceil);
+            return DateUtils.parseDA(null, s, ceil);
         }
 
         @Override
@@ -63,6 +71,10 @@ enum TemporalType {
             return DateUtils.formatDA(tz, date);
         }
     }, DT {
+        public Temporal parseTemporal(String s, DatePrecision precision) {
+            return DateUtils.parseTemporalDT(s, precision);
+        }
+
         @Override
         public Date parse(TimeZone tz, String s, boolean ceil,
                 DatePrecision precision) {
@@ -75,10 +87,14 @@ enum TemporalType {
             return DateUtils.formatDT(tz, date, precision);
         }
     }, TM {
+        @Override public Temporal parseTemporal(String s, DatePrecision precision) {
+            return DateUtils.parseLocalTM(s, precision);
+        }
+
         @Override
         public Date parse(TimeZone tz, String s, boolean ceil,
                 DatePrecision precision) {
-            return DateUtils.parseTM(tz, s, ceil, precision);
+            return DateUtils.parseTM(null, s, ceil, precision);
         }
 
         @Override
@@ -87,6 +103,8 @@ enum TemporalType {
             return DateUtils.formatTM(tz, date, precision);
         }
     };
+
+    public abstract Temporal parseTemporal(String s, DatePrecision precision);
 
     public abstract Date parse(TimeZone tz, String val, boolean ceil,
             DatePrecision precision);

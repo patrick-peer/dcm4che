@@ -256,6 +256,7 @@ class PDUDecoder extends PDVInputStream {
     private AAssociateRQAC decode(AAssociateRQAC rqac)
             throws AAbort {
         try {
+            rqac.setImplVersionName(null);
             rqac.setProtocolVersion(getUnsignedShort());
             get();
             get();
@@ -455,7 +456,6 @@ class PDUDecoder extends PDVInputStream {
             nextPDV(PDVType.DATA, pcid);
             if (dimse.isRSP()) {
                 Attributes data = readDataset(tsuid);
-                Dimse.LOG.debug("Dataset:\n{}", data);
                 if (Dimse.LOG.isDebugEnabled()) {
                     Dimse.LOG.debug("{} >> {} Dataset:\n{}", as, dimse.toString(cmd), data);
                 }
@@ -505,7 +505,7 @@ class PDUDecoder extends PDVInputStream {
     public Attributes readDataset(String tsuid) throws IOException {
         DicomInputStream in = new DicomInputStream(this, tsuid);
         try {
-            return in.readDataset(-1, -1);
+            return in.readDataset();
         } finally {
             SafeClose.close(in);
         }

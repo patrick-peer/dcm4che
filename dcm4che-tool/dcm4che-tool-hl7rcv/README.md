@@ -17,8 +17,9 @@ Options:
     --directory <path>               directory to which received HL7 V2
                                      messages are stored, using its
                                      Message Type as sub-directory name
-                                     and its Message Control ID as file
-                                     name. '.' by default
+                                     and its Message Control ID or a
+                                     random uuid as file name. '.' by
+                                     default
  -h,--help                           display this help and exit
     --idle-timeout <ms>              timeout in ms for receiving HL7
                                      messages, no timeout by default
@@ -29,11 +30,15 @@ Options:
                                      default
     --key-store <file|url>           file path or URL of key store
                                      containing the private key,
-                                     resource:key.jks by default
+                                     resource:key.p12 by default
     --key-store-pass <password>      password for key store containing the
                                      private key, 'secret' by default
     --key-store-type <storetype>     type of key store containing the
-                                     private key, JKS by default
+                                     private key, PKCS12 by default
+    --mllp2                          use MLLP Release 2 with Commit
+                                     Acknowledgement Block
+    --response-delay <ms>            delay in ms returning response
+                                     message. No delay by default.
     --sorcv-buffer <length>          set SO_RCVBUF socket option to
                                      specified value
     --sosnd-buffer <length>          set SO_SNDBUF socket option to
@@ -70,6 +75,11 @@ Options:
                                      Cipher Suite. Multiple Cipher Suites
                                      may be enabled by multiple
                                      --tls-cipher options
+    --tls-eia-https                  enable server endpoint identification
+                                     according RFC 2818: HTTP Over TLS
+    --tls-eia-ldaps                  enable server endpoint identification
+                                     according RFC 2830: LDAP Extension
+                                     for TLS
     --tls-noauth                     disable client authentification for
                                      TLS
     --tls-null                       enable TLS connection without
@@ -92,11 +102,13 @@ Options:
                                      equivalent to --tls-protocol TLSv1.3
     --trust-store <file|url>         file path of key store containing
                                      trusted certificates,
-                                     resource:cacerts.jks by default
+                                     resource:cacerts.p12 by default
     --trust-store-pass <password>    password for key store with trusted
                                      certificates, 'secret' by default
     --trust-store-type <storetype>   type of key store with trusted
-                                     certificates, JKS by default
+                                     certificates, PKCS12 by default
+    --uuid                           use a random uuid for message
+                                     filename instead of MSH-9
  -V,--version                        output version information and exit
  -x,--xsl <xsl-file>                 generate response by applying
                                      specified XSLT stylesheet, return

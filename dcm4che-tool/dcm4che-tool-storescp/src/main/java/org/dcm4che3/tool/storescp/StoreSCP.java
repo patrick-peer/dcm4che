@@ -40,6 +40,8 @@ package org.dcm4che3.tool.storescp;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
@@ -47,16 +49,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
 import org.dcm4che3.io.DicomInputStream;
-import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.io.DicomInputStream.IncludeBulkData;
-import org.dcm4che3.net.*;
+import org.dcm4che3.io.DicomOutputStream;
+import org.dcm4che3.net.ApplicationEntity;
+import org.dcm4che3.net.Association;
+import org.dcm4che3.net.Connection;
+import org.dcm4che3.net.Device;
+import org.dcm4che3.net.Dimse;
+import org.dcm4che3.net.PDVInputStream;
+import org.dcm4che3.net.Status;
+import org.dcm4che3.net.TransferCapability;
 import org.dcm4che3.net.pdu.PresentationContext;
 import org.dcm4che3.net.service.BasicCEchoSCP;
 import org.dcm4che3.net.service.BasicCStoreSCP;
@@ -88,6 +97,8 @@ public class StoreSCP {
     private int status;
     private int[] receiveDelays;
     private int[] responseDelays;
+    private int renameRetries;
+    private int renameRetryJitter;
     private final BasicCStoreSCP cstoreSCP = new BasicCStoreSCP("*") {
 
         @Override
@@ -103,7 +114,7 @@ public class StoreSCP {
                 String cuid = rq.getString(Tag.AffectedSOPClassUID);
                 String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
                 String tsuid = pc.getTransferSyntax();
-                File file = new File(storageDir, iuid + PART_EXT);
+                File file = File.createTempFile(iuid, PART_EXT, storageDir);
                 try {
                     storeTo(as, as.createFileMetaInformation(iuid, cuid, tsuid),
                             data, file);
@@ -154,20 +165,32 @@ public class StoreSCP {
         }
     }
 
-    private static void renameTo(Association as, File from, File dest)
+    private void renameTo(Association as, File from, File dest)
             throws IOException {
         LOG.info("{}: M-RENAME {} to {}", as, from, dest);
-        if (!dest.getParentFile().mkdirs())
-            dest.delete();
-        if (!from.renameTo(dest))
-            throw new IOException("Failed to rename " + from + " to " + dest);
+        for(int try_count = 0; try_count <= renameRetries; try_count++) {
+            try{
+                dest.getParentFile().mkdirs();
+                Files.move(from.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                return;
+            }
+            catch (IOException e){
+                if (try_count == renameRetries){
+                    throw e;
+                }
+                try {
+                    Thread.sleep((long)(Math.random()*renameRetryJitter));
+                } catch (InterruptedException ignore) {
+                }
+            }
+        }
     }
 
     private static Attributes parse(File file) throws IOException {
         DicomInputStream in = new DicomInputStream(file);
         try {
             in.setIncludeBulkData(IncludeBulkData.NO);
-            return in.readDataset(-1, Tag.PixelData);
+            return in.readDatasetUntilPixelData();
         } finally {
             SafeClose.close(in);
         }
@@ -209,17 +232,33 @@ public class StoreSCP {
         this.responseDelays = responseDelays;
     }
 
+    public void setRenameRetries(int renameRetries){
+        if (renameRetries <0){
+            throw new IllegalArgumentException("Rename retries must be a non-negative value!");
+        }
+        this.renameRetries = renameRetries;
+    }
+
+    public void setRenameRetryJitter(int renameRetryJitter){
+        if (renameRetryJitter <0){
+            throw new IllegalArgumentException("Rename retry jitter must be a non-negative value!");
+        }
+        this.renameRetryJitter = renameRetryJitter;
+    }
+
     private static CommandLine parseComandLine(String[] args)
             throws ParseException {
         Options opts = new Options();
         CLIUtils.addBindServerOption(opts);
         CLIUtils.addAEOptions(opts);
+        CLIUtils.addAcceptedCallingAETs(opts);
         CLIUtils.addCommonOptions(opts);
         addStatusOption(opts);
         addDelayOption(opts, "receive-delay");
         addDelayOption(opts, "response-delay");
         addStorageDirectoryOptions(opts);
         addTransferCapabilityOptions(opts);
+        addRenameRetryOptions(opts);
         return CLIUtils.parseComandLine(args, opts, rb, StoreSCP.class);
     }
 
@@ -269,17 +308,35 @@ public class StoreSCP {
                 .build());
     }
 
+    private static void addRenameRetryOptions(Options opts){
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("count")
+                .desc(rb.getString("rename-retries"))
+                .longOpt("rename-retries")
+                .build());
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("ms")
+                .desc(rb.getString("rename-retry-jitter"))
+                .longOpt("rename-retry-jitter")
+                .build());
+    }
+
     public static void main(String[] args) {
         try {
             CommandLine cl = parseComandLine(args);
             StoreSCP main = new StoreSCP();
             CLIUtils.configureBindServer(main.conn, main.ae, cl);
             CLIUtils.configure(main.conn, cl);
+            CLIUtils.configureAcceptedCallingAETitles(main.ae, cl, LOG);
             main.setStatus(CLIUtils.getIntOption(cl, "status", 0));
             main.setReceiveDelays(CLIUtils.getIntsOption(cl, "receive-delay"));
             main.setResponseDelays(CLIUtils.getIntsOption(cl, "response-delay"));
             configureTransferCapability(main.ae, cl);
             configureStorageDirectory(main, cl);
+            main.setRenameRetries(CLIUtils.getIntOption(cl, "rename-retries", 3));
+            main.setRenameRetryJitter(CLIUtils.getIntOption(cl, "rename-retry-jitter", 50));
             ExecutorService executorService = Executors.newCachedThreadPool();
             ScheduledExecutorService scheduledExecutorService = 
                     Executors.newSingleThreadScheduledExecutor();
@@ -296,7 +353,7 @@ public class StoreSCP {
             System.exit(2);
         }
     }
-
+    
     private static void configureStorageDirectory(StoreSCP main, CommandLine cl) {
         if (!cl.hasOption("ignore")) {
             main.setStorageDirectory(

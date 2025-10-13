@@ -56,6 +56,19 @@ public class IDWithIssuerTest {
     private static final String ISO = "ISO";
 
     @Test
+    public void escapedHL7Separators() {
+        IDWithIssuer pid = new IDWithIssuer("\\F\\\\S\\^^^\\R\\&\\E\\&\\T\\^\\S\\\\F\\");
+        Issuer issuer = pid.getIssuer();
+        assertEquals("|^", pid.getID());
+        assertEquals("~", issuer.getLocalNamespaceEntityID());
+        assertEquals("\\", issuer.getUniversalEntityID());
+        assertEquals("&", issuer.getUniversalEntityIDType());
+        assertEquals("^|", pid.getIdentifierTypeCode());
+        assertEquals("\\R\\&\\E\\&\\T\\", issuer.toString());
+        assertEquals("\\F\\\\S\\^^^\\R\\&\\E\\&\\T\\^\\S\\\\F\\", pid.toString());
+    }
+
+    @Test
     public void rootId_is_not_added_when_matching_id_is_already_there() {
         Attributes rootWithMainId = createIdWithNS(NS);
 
@@ -120,5 +133,15 @@ public class IDWithIssuerTest {
         attributes.setString(PatientID, VR.LO, ID);
         attributes.setString(IssuerOfPatientID, VR.LO, ns);
         return attributes;
+    }
+
+    @Test
+    public void doNotMatchIssuerOnNoMismatch() {
+        Attributes attrs = new IDWithIssuer("PID123^^^ISS1").exportPatientIDWithIssuer(null);
+        Sequence sq = attrs.newSequence(OtherPatientIDsSequence, 3);
+        sq.add( new IDWithIssuer("PID123^^^ISS2").exportPatientIDWithIssuer(null));
+        sq.add( new IDWithIssuer("PID123^^^&1.2.3&ISO").exportPatientIDWithIssuer(null));
+        Set<IDWithIssuer> pids = IDWithIssuer.pidsOf(attrs);
+        assertEquals(3, pids.size());
     }
 }

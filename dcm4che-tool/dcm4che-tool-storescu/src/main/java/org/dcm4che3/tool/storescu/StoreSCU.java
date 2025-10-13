@@ -38,55 +38,37 @@
 
 package org.dcm4che3.tool.storescu;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.security.GeneralSecurityException;
-import java.text.MessageFormat;
-import java.util.List;
-import java.util.Properties;
-import java.util.ResourceBundle;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import javax.xml.parsers.ParserConfigurationException;
-
 import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option.Builder;
-import org.apache.commons.cli.Options;
 import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
-import org.dcm4che3.data.Attributes;
 import org.dcm4che3.imageio.codec.Decompressor;
 import org.dcm4che3.io.DicomInputStream;
-import org.dcm4che3.io.SAXReader;
 import org.dcm4che3.io.DicomInputStream.IncludeBulkData;
-import org.dcm4che3.net.ApplicationEntity;
-import org.dcm4che3.net.Association;
-import org.dcm4che3.net.Connection;
-import org.dcm4che3.net.DataWriterAdapter;
-import org.dcm4che3.net.Device;
-import org.dcm4che3.net.DimseRSPHandler;
-import org.dcm4che3.net.IncompatibleConnectionException;
-import org.dcm4che3.net.InputStreamDataWriter;
-import org.dcm4che3.net.Status;
+import org.dcm4che3.io.SAXReader;
+import org.dcm4che3.net.*;
 import org.dcm4che3.net.pdu.AAssociateRQ;
 import org.dcm4che3.net.pdu.PresentationContext;
+import org.dcm4che3.net.pdu.RoleSelection;
 import org.dcm4che3.tool.common.CLIUtils;
 import org.dcm4che3.tool.common.DicomFiles;
 import org.dcm4che3.util.SafeClose;
 import org.dcm4che3.util.StringUtils;
 import org.dcm4che3.util.TagUtils;
 import org.xml.sax.SAXException;
+
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.security.GeneralSecurityException;
+import java.text.MessageFormat;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
@@ -141,7 +123,7 @@ public class StoreSCU {
         this.remote = new Connection();
         this.ae = ae;
         rq.addPresentationContext(new PresentationContext(1,
-                UID.VerificationSOPClass, UID.ImplicitVRLittleEndian));
+                UID.Verification, UID.ImplicitVRLittleEndian));
     }
 
     public void setRspHandlerFactory(RSPHandlerFactory rspHandlerFactory) {
@@ -192,12 +174,13 @@ public class StoreSCU {
             throws ParseException {
         Options opts = new Options();
         CLIUtils.addConnectOption(opts);
-        CLIUtils.addBindOption(opts, "STORESCU");
+        CLIUtils.addBindClientOption(opts, "STORESCU");
         CLIUtils.addAEOptions(opts);
         CLIUtils.addStoreTimeoutOption(opts);
         CLIUtils.addResponseTimeoutOption(opts);
         CLIUtils.addPriorityOption(opts);
         CLIUtils.addCommonOptions(opts);
+        addStoreTCOptions(opts);
         addTmpFileOptions(opts);
         addRelatedSOPClassOptions(opts);
         addAttributesOption(opts);
@@ -205,21 +188,35 @@ public class StoreSCU {
         return CLIUtils.parseComandLine(args, opts, rb, StoreSCU.class);
     }
 
-    @SuppressWarnings("static-access")
     private static void addAttributesOption(Options opts) {
-        opts.addOption(Option.builder("s").hasArgs().argName("[seq/]attr=value")
-                .valueSeparator('=').desc(rb.getString("set"))
+        opts.addOption(Option.builder("s")
+                .hasArgs()
+                .argName("[seq.]attr=value")
+                .desc(rb.getString("set"))
                 .build());
     }
 
-    @SuppressWarnings("static-access")
     public static void addUIDSuffixOption(Options opts) {
         opts.addOption(Option.builder().hasArg().argName("suffix")
                 .desc(rb.getString("uid-suffix"))
                 .longOpt("uid-suffix").build());
     }
 
-    @SuppressWarnings("static-access")
+    private static void addStoreTCOptions(Options opts) {
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("cuid:tsuid[(,|;)...]")
+                .desc(rb.getString("store-tc"))
+                .longOpt("store-tc")
+                .build());
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("file|url")
+                .desc(rb.getString("store-tcs"))
+                .longOpt("store-tcs")
+                .build());
+    }
+
     public static void addTmpFileOptions(Options opts) {
         opts.addOption(Option.builder().hasArg().argName("directory")
                 .desc(rb.getString("tmp-file-dir"))
@@ -232,7 +229,6 @@ public class StoreSCU {
                 .longOpt("tmp-file-suffix").build());
     }
 
-    @SuppressWarnings("static-access")
     private static void addRelatedSOPClassOptions(Options opts) {
         opts.addOption(null, "rel-ext-neg", false, rb.getString("rel-ext-neg"));
         opts.addOption(Option.builder().hasArg().argName("file|url")
@@ -240,7 +236,6 @@ public class StoreSCU {
                 .longOpt("rel-sop-classes").build());
     }
 
-    @SuppressWarnings("unchecked")
     public static void main(String[] args) {
         long t1, t2;
         try {
@@ -265,7 +260,9 @@ public class StoreSCU {
             main.setPriority(CLIUtils.priorityOf(cl));
             List<String> argList = cl.getArgList();
             boolean echo = argList.isEmpty();
-            if (!echo) {
+            if (echo) {
+                configureStorageSOPClasses(main, cl);
+            } else {
                 System.out.println(rb.getString("scanning"));
                 t1 = System.currentTimeMillis();
                 main.scanFiles(argList);
@@ -346,42 +343,78 @@ public class StoreSCU {
         }
     }
 
+    private static void configureStorageSOPClasses(StoreSCU main, CommandLine cl)
+            throws Exception {
+        String[] pcs = cl.getOptionValues("store-tc");
+        if (pcs != null)
+            for (String pc : pcs) {
+                String[] ss = StringUtils.split(pc, ':');
+                configureStorageSOPClass(main, ss[0], ss[1]);
+            }
+        String[] files = cl.getOptionValues("store-tcs");
+        if (files != null)
+            for (String file : files) {
+                Properties p = CLIUtils.loadProperties(file, null);
+                Set<Map.Entry<Object, Object>> entrySet = p.entrySet();
+                for (Map.Entry<Object, Object> entry : entrySet)
+                    configureStorageSOPClass(main, (String) entry.getKey(), (String) entry.getValue());
+            }
+    }
+
+    private static void configureStorageSOPClass(StoreSCU main, String cuid, String tsuids0) {
+        for (String tsuids2 : StringUtils.split(tsuids0, ';')) {
+            main.addOfferedStorageSOPClass(CLIUtils.toUID(cuid), CLIUtils.toUIDs(tsuids2));
+        }
+    }
+
+    public void addOfferedStorageSOPClass(String cuid, String... tsuids) {
+        rq.addPresentationContext(new PresentationContext(
+                2 * rq.getNumberOfPresentationContexts() + 1, cuid, tsuids));
+    }
+
     public final void enableSOPClassRelationshipExtNeg(boolean enable) {
         relExtNeg = enable;
     }
 
     public void scanFiles(List<String> fnames) throws IOException {
-        this.scanFiles(fnames, true);
-    }
-
-    public void scanFiles(List<String> fnames, boolean printout)
-            throws IOException {
         tmpFile = File.createTempFile(tmpPrefix, tmpSuffix, tmpDir);
         tmpFile.deleteOnExit();
-        final BufferedWriter fileInfos = new BufferedWriter(
-                new OutputStreamWriter(new FileOutputStream(tmpFile)));
-        try {
-            DicomFiles.scan(fnames, printout, new DicomFiles.Callback() {
+        try (BufferedWriter fileInfos = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(tmpFile)))) {
+            for (String fname : fnames)
+                scan(new File(fname), fileInfos);
+        }
+    }
 
-                @Override
-                public boolean dicomFile(File f, Attributes fmi, long dsPos,
-                        Attributes ds) throws IOException {
-                    if (!addFile(fileInfos, f, dsPos, fmi, ds))
-                        return false;
-
-                    filesScanned++;
-                    return true;
-                }
-            });
-        } finally {
-            fileInfos.close();
+    private void scan(File f, BufferedWriter fileInfos) {
+        if (f.isDirectory()) {
+            for (String s : f.list())
+                scan(new File(f, s), fileInfos);
+            return;
+        }
+        try (DicomInputStream in = new DicomInputStream(f)) {
+            in.setIncludeBulkData(IncludeBulkData.NO);
+            Attributes fmi = in.readFileMetaInformation();
+            long dsPos = in.getPosition();
+            if (fmi == null || !fmi.containsValue(Tag.TransferSyntaxUID)
+                    || !fmi.containsValue(Tag.MediaStorageSOPClassUID)
+                    || !fmi.containsValue(Tag.MediaStorageSOPInstanceUID)) {
+                Attributes ds = in.readDataset(Tag.SOPInstanceUID + 1);
+                fmi = ds.createFileMetaInformation(in.getTransferSyntax());
+            }
+            boolean b = addFile(fileInfos, f, dsPos, fmi);
+            if (b) filesScanned++;
+            System.out.print(b ? '.' : 'I');
+        } catch (Exception e) {
+            System.out.println();
+            System.out.println("Failed to scan file " + f + ": " + e.getMessage());
+            e.printStackTrace(System.out);
         }
     }
 
     public void sendFiles() throws IOException {
-        BufferedReader fileInfos = new BufferedReader(new InputStreamReader(
-                new FileInputStream(tmpFile)));
-        try {
+        try (BufferedReader fileInfos = new BufferedReader(
+                new InputStreamReader(new FileInputStream(tmpFile)))) {
             String line;
             while (as.isReadyForDataTransfer()
                     && (line = fileInfos.readLine()) != null) {
@@ -398,13 +431,11 @@ public class StoreSCU {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-        } finally {
-            SafeClose.close(fileInfos);
         }
     }
 
     public boolean addFile(BufferedWriter fileInfos, File f, long endFmi,
-            Attributes fmi, Attributes ds) throws IOException {
+            Attributes fmi) throws IOException {
         String cuid = fmi.getString(Tag.MediaStorageSOPClassUID);
         String iuid = fmi.getString(Tag.MediaStorageSOPInstanceUID);
         String ts = fmi.getString(Tag.TransferSyntaxUID);
@@ -477,7 +508,7 @@ public class StoreSCU {
                 DicomInputStream in = new DicomInputStream(f);
                 try {
                     in.setIncludeBulkData(IncludeBulkData.URI);
-                    Attributes data = in.readDataset(-1, -1);
+                    Attributes data = in.readDataset();
                     if (CLIUtils.updateAttributes(data, attrs, uidSuffix))
                         iuid = data.getString(Tag.SOPInstanceUID);
                     if (!ts.equals(filets)) {

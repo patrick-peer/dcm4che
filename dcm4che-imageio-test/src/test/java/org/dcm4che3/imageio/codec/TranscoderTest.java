@@ -46,13 +46,17 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.UID;
+import org.dcm4che3.data.VR;
 import org.dcm4che3.imageio.codec.jpeg.JPEGParser;
 import org.dcm4che3.io.DicomInputStream;
-import org.dcm4che3.util.Property;
+import org.dcm4che3.util.UIDUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -79,7 +83,7 @@ public class TranscoderTest {
 
     @Test
     public void testCopyBigEndian() throws Exception {
-        test("US-RGB-8-epicard", "US-RGB-8-epicard", UID.ExplicitVRBigEndianRetired, true);
+        test("US-RGB-8-epicard", "US-RGB-8-epicard", UID.ExplicitVRBigEndian, true);
     }
 
     @Test
@@ -89,7 +93,7 @@ public class TranscoderTest {
 
     @Test
     public void testCopyJPEG12bit() throws Exception {
-        test("NM1_JPLY", "NM1_JPLY", UID.JPEGExtended24, true);
+        test("NM1_JPLY", "NM1_JPLY", UID.JPEGExtended12Bit, true);
     }
 
     @Test
@@ -114,32 +118,32 @@ public class TranscoderTest {
 
     @Test
     public void testCompressMF() throws Exception {
-        test("cplx_p02.dcm", "cplx_p02_jply.dcm", UID.JPEGBaseline1, true);
+        test("cplx_p02.dcm", "cplx_p02_jply.dcm", UID.JPEGBaseline8Bit, true);
     }
 
     @Test
     public void testCompressEmbeddedOverlays() throws Exception {
-        test("ovly_p01.dcm", "ovly_p01_jply.dcm", UID.JPEGExtended24, true);
+        test("ovly_p01.dcm", "ovly_p01_jply.dcm", UID.JPEGExtended12Bit, true);
     }
 
     @Test
     public void testCompressPerPlaneRGB() throws Exception {
-        test("US-RGB-8-epicard", "US-RGB-8-epicard_jply", UID.JPEGBaseline1, true);
+        test("US-RGB-8-epicard", "US-RGB-8-epicard_jply", UID.JPEGBaseline8Bit, true);
     }
 
     @Test
     public void testCompressPerPixelRGB() throws Exception {
-        test("US-RGB-8-esopecho", "US-RGB-8-esopecho_jply", UID.JPEGBaseline1, true);
+        test("US-RGB-8-esopecho", "US-RGB-8-esopecho_jply", UID.JPEGBaseline8Bit, true);
     }
 
     @Test
     public void testCompressPerPixelRgb2JpegLossless() throws Exception {
-        test("US-RGB-8-esopecho", "US-RGB-8-esopecho-jpegLossless.dcm", UID.JPEGLossless, true);
+        test("US-RGB-8-esopecho", "US-RGB-8-esopecho-jpegLossless.dcm", UID.JPEGLosslessSV1, true);
     }
 
     @Test
     public void testTranscodePaletteRleMf2RgbJpegls() throws Exception {
-        test("US-PAL-8-10x-echo", "US-PAL-8-10x-echo-jpegls.dcm", UID.JPEGLSLossyNearLossless, true);
+        test("US-PAL-8-10x-echo", "US-PAL-8-10x-echo-jpegls.dcm", UID.JPEGLSNearLossless, true);
     }
 
     @Test
@@ -154,7 +158,7 @@ public class TranscoderTest {
 
     @Test
     public void testTranscodeYbr422Raw2RgbJpegLossless() throws Exception {
-        test("YBR_422.dcm", "YBR_422-jpegLossless.dcm", UID.JPEGLossless, true);
+        test("YBR_422.dcm", "YBR_422-jpegLossless.dcm", UID.JPEGLosslessSV1, true);
     }
 
     @Test
@@ -164,26 +168,50 @@ public class TranscoderTest {
 
     @Test
     public void testCompress12BitsJPLL() throws Exception {
-        test("MR2_UNC", "MR2_UNC-JPLL.dcm", UID.JPEGLossless, true);
+        test("MR2_UNC", "MR2_UNC-JPLL.dcm", UID.JPEGLosslessSV1, true);
         assertEquals(12, jpegBitsPerSample("MR2_UNC-JPLL.dcm"));
     }
 
-//    @Test - not supported by NativeJLSImageWriter
+    @Test
     public void testCompress12BitsJLSL() throws Exception {
         test("MR2_UNC", "MR2_UNC-JLSL.dcm", UID.JPEGLSLossless, true);
         assertEquals(12, jpegBitsPerSample("MR2_UNC-JLSL.dcm"));
     }
 
-//    @Test - not supported by NativeJ2kImageWriter
+    @Test
     public void testCompress12BitsJ2KR() throws Exception {
-        test("MR2_UNC", "MR2_UNC-J2KR.dcm", UID.JPEG2000LosslessOnly, true);
+        test("MR2_UNC", "MR2_UNC-J2KR.dcm", UID.JPEG2000Lossless, true);
         assertEquals(12, jpegBitsPerSample("MR2_UNC-J2KR.dcm"));
     }
 
-//    @Test - broken
+    @Test
     public void testSigned12BitsJ2KI() throws Exception {
         test("test16signed.dcm", "test16signed-J2KI.dcm", UID.JPEG2000, true);
         assertEquals(1, jpegPixelRepresentation("test16signed-J2KI.dcm"));
+    }
+
+    @Test
+      public void testJxlToJpeg() throws Exception {
+      test("will-jxl.dcm", "test-jpeg.dcm", UID.JPEGBaseline8Bit, true);
+      assertEquals(8, jpegBitsPerSample("test-jpeg.dcm"));
+    }
+
+    @Test
+    public void testConvertToJxlLossless() throws Exception {
+      test("test16signed.dcm", "test-signed-jxl-lossless.dcm", UID.JPEGXLLossless, true);
+      test("jpeg-ls-Palette.dcm", "jpeg-ls-Palette-jxl-lossless.dcm", UID.JPEGXLLossless, true);
+    }
+
+    @Test
+    public void testConvertToJxlLossy() throws Exception {
+      test("test16signed.dcm", "test-signed-jxl.dcm", UID.JPEGXL, true);
+      test("YBR_422.dcm", "YBR_422-jxl.dcm", UID.JPEGXL, true);
+    }
+
+    @Test
+    public void testConvertToJxlLossyJpegRecompression() throws Exception {
+      test("test16signed.dcm", "test-signed-jxl-recompression.dcm", UID.JPEGXLJPEGRecompression, true);
+      test("YBR_422.dcm", "YBR_422-jxl-recompression.dcm", UID.JPEGXLJPEGRecompression, true);
     }
 
     private int jpegBitsPerSample(String ofname) throws IOException {
@@ -206,30 +234,55 @@ public class TranscoderTest {
 
     private long jpegPos(File ofile) throws IOException {
         try (DicomInputStream dis = new DicomInputStream(ofile)) {
-            dis.readDataset(-1, Tag.PixelData);
+            dis.readDatasetUntilPixelData();
             return dis.getPosition() + 16;
         }
     }
 
-    private void test(String ifname, String ofname, final String outts, boolean fmi, Property... compressParams)
+    private void test(String ifname, String ofname, final String outts, boolean fmi)
             throws IOException {
         final File ifile = new File("target/test-data/" + ifname);
         final File ofile = new File("target/test-out/" + ofname);
         Transcoder.Handler handler = new Transcoder.Handler() {
             @Override
             public OutputStream newOutputStream(Transcoder transcoder, Attributes dataset) throws IOException {
+                dataset.setString(Tag.SeriesInstanceUID, VR.UI, UIDUtils.createUID());
+                dataset.setString(Tag.SOPInstanceUID, VR.UI, UIDUtils.createUID());
                 return new FileOutputStream(ofile);
             }
         };
         try (Transcoder transcoder = new Transcoder(ifile)) {
             transcoder.setIncludeFileMetaInformation(fmi);
             transcoder.setIncludeBulkData(DicomInputStream.IncludeBulkData.URI);
-            boolean transcodeNotRequired = transcoder.getDestinationTransferSyntax().equals(outts);
             transcoder.setDestinationTransferSyntax(outts);
-            if (!transcodeNotRequired && TransferSyntaxType.forUID(outts).isPixeldataEncapsulated()) {
-                transcoder.setCompressParams(compressParams);
-            }
             transcoder.transcode(handler);
         }
     }
+
+    @Test
+    public void testTranscodeFileMultipleTimes() throws Exception {
+        test("MR-JPEGLosslessSV1.dcm", UID.JPEGLSLossless, UID.JPEGLosslessSV1);
+        test("CT-JPEGLosslessSV1.dcm", UID.ExplicitVRLittleEndian, UID.JPEGLSLossless, UID.JPEGLosslessSV1);
+    }
+
+    private void test(String srcFileName, String... transferSyntaxList) throws Exception {
+        String newSrcFileName = null;
+
+        for (int i = 0; i < transferSyntaxList.length; i++) {
+            String transferSyntax = transferSyntaxList[i];
+            String dstFileName = transferSyntax + ".dcm";
+
+            if (i == 0) {
+                test(srcFileName, dstFileName, transferSyntax, true);
+            } else {
+                test(newSrcFileName, dstFileName, transferSyntax, true);
+            }
+
+            Path source = Paths.get("target/test-out/", dstFileName);
+            Path target = Paths.get("target/test-data/", dstFileName);
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            newSrcFileName = dstFileName;
+        }
+    }
+
 }

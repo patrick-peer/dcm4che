@@ -40,12 +40,12 @@ Options:
                                           password by default
     --key-store <file|url>                file path or URL of key store
                                           containing the private key,
-                                          resource:key.jks by default
+                                          resource:key.p12 by default
     --key-store-pass <password>           password for key store
                                           containing the private key,
                                           'secret' by default
     --key-store-type <storetype>          type of key store containing the
-                                          private key, JKS by default
+                                          private key, PKCS12 by default
     --level <level>                       specify level name of the
                                           emitted Syslog messages. Valid
                                           level names are: emerg, alert,
@@ -108,6 +108,12 @@ Options:
                                           specified Cipher Suite. Multiple
                                           Cipher Suites may be enabled by
                                           multiple --tls-cipher options
+    --tls-eia-https                       enable server endpoint
+                                          identification according RFC
+                                          2818: HTTP Over TLS
+    --tls-eia-ldaps                       enable server endpoint
+                                          identification according RFC
+                                          2830: LDAP Extension for TLS
     --tls-noauth                          disable client authentification
                                           for TLS
     --tls-null                            enable TLS connection without
@@ -137,12 +143,12 @@ Options:
                                           --tls-protocol TLSv1.3
     --trust-store <file|url>              file path of key store
                                           containing trusted certificates,
-                                          resource:cacerts.jks by default
+                                          resource:cacerts.p12 by default
     --trust-store-pass <password>         password for key store with
                                           trusted certificates, 'secret'
                                           by default
     --trust-store-type <storetype>        type of key store with trusted
-                                          certificates, JKS by default
+                                          certificates, PKCS12 by default
     --udp                                 send Syslog messages over UDP;
                                           send Syslog messages over TCP by
                                           default.

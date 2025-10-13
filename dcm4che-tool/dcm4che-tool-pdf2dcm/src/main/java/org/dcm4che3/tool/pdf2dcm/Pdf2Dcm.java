@@ -53,6 +53,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.MessageFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.ResourceBundle;
 
 /**
@@ -78,6 +79,8 @@ public class Pdf2Dcm {
     };
 
     private static Attributes staticMetadata;
+    private static FileContentType fileContentType;
+    private static boolean encapsulatedDocLength;
 
     public static void main(String[] args) {
         try {
@@ -92,7 +95,7 @@ public class Pdf2Dcm {
                     && !dest.isDirectory())
                 throw new ParseException(
                         MessageFormat.format(rb.getString("nodestdir"), dest));
-            createStaticMetadata(cl);
+            initialize(cl);
             pdf2Dcm.convert(cl.getArgList());
         } catch (ParseException e) {
             System.err.println("pdf2dcm: " + e.getMessage());
@@ -108,10 +111,9 @@ public class Pdf2Dcm {
     private static CommandLine parseComandLine(String[] args) throws ParseException {
         Options opts = new Options();
         CLIUtils.addCommonOptions(opts);
-        opts.addOption(Option.builder("m")
+        opts.addOption(Option.builder("s")
                 .hasArgs()
-                .argName("[seq/]attr=value")
-                .valueSeparator()
+                .argName("[seq.]attr=value")
                 .desc(rb.getString("metadata"))
                 .build());
         opts.addOption(Option.builder("f")
@@ -119,52 +121,89 @@ public class Pdf2Dcm {
                 .argName("xml-file")
                 .desc(rb.getString("file"))
                 .build());
+        opts.addOption(Option.builder()
+                .hasArg()
+                .argName("contentType")
+                .longOpt("contentType")
+                .desc(rb.getString("contentType"))
+                .build());
+        opts.addOption(Option.builder()
+                .longOpt("encapsulatedDocLength")
+                .desc(rb.getString("encapsulatedDocLength"))
+                .build());
         return CLIUtils.parseComandLine(args, opts, rb, Pdf2Dcm.class);
     }
 
-    enum FileType {
+    enum FileContentType {
         PDF("resource:encapsulatedPDFMetadata.xml"),
-        XML("resource:encapsulatedCDAMetadata.xml"),
-        SLA("resource:encapsulatedSTLMetadata.xml"),
+        CDA("resource:encapsulatedCDAMetadata.xml"),
+        STL("resource:encapsulatedSTLMetadata.xml"),
         MTL("resource:encapsulatedMTLMetadata.xml"),
-        OBJ("resource:encapsulatedOBJMetadata.xml");
+        OBJ("resource:encapsulatedOBJMetadata.xml"),
+        GENOZIP("resource:encapsulatedGenozipMetadata.xml"),
+        VCF_BZIP2("resource:encapsulatedVCFBzip2Metadata.xml"),
+        DOC_BZIP2("resource:encapsulatedDocumentBzip2Metadata.xml");
 
-        private String sampleMetadataFile;
+        private final String sampleMetadataFile;
 
         public String getSampleMetadataFile() {
             return sampleMetadataFile;
         }
 
-        FileType(String sampleMetadataFile) {
+        FileContentType(String sampleMetadataFile) {
             this.sampleMetadataFile = sampleMetadataFile;
         }
 
-        static FileType valueOf(Path path) throws IOException {
-            String contentType = contentTypeOfFile(path);
-            if (contentType == null)
-                throw new IllegalArgumentException(
-                        MessageFormat.format(rb.getString("content-type-undetermined"), path));
-
-            try {
-                return valueOf(contentType.substring(contentType.indexOf("/") + 1).toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                        MessageFormat.format(rb.getString("invalid-content-type"), contentType, path));
-            }
+        static FileContentType valueOf(Path path) throws IOException {
+            String fileName = path.toFile().getName();
+            String ext = fileName.substring(fileName.lastIndexOf('.') + 1);
+            String contentType = Files.probeContentType(path);
+            return fileContentType(contentType != null ? contentType : ext);
         }
     }
 
-    private static String contentTypeOfFile(Path path) throws IOException {
-        String contentType = Files.probeContentType(path);
-        if (contentType != null)
-            return contentType;
+    private static FileContentType fileContentType(String s) {
+        switch (s.toLowerCase(Locale.ENGLISH)) {
+            case "stl":
+            case "model/stl":
+            case "model/x.stl-binary":
+            case "application/sla":
+                return FileContentType.STL;
+            case "pdf":
+            case "application/pdf":
+                return FileContentType.PDF;
+            case "xml":
+            case "application/xml":
+                return FileContentType.CDA;
+            case "mtl":
+            case "model/mtl":
+                return FileContentType.MTL;
+            case "obj":
+            case "model/obj":
+                return FileContentType.OBJ;
+            case "genozip":
+            case "application/vnd.genozip":
+                return FileContentType.GENOZIP;
+            case "vcf.bz2":
+            case "vcfbzip2":
+            case "vcfbz2":
+            case "application/prs.vcfbzip2":
+                return FileContentType.VCF_BZIP2;
+            case "boz":
+            case "bz2":
+            case "application/x-bzip2":
+                return FileContentType.DOC_BZIP2;
+            default:
+                throw new IllegalArgumentException(
+                        MessageFormat.format(rb.getString("content-type-undetermined"), s));
+        }
+    }
 
-        String fileName = path.toFile().getName();
-        String ext = fileName.substring(fileName.lastIndexOf('.') + 1);
-        return ext.equalsIgnoreCase("obj")
-                ? "model/obj"
-                : ext.equalsIgnoreCase("mtl")
-                    ? "model/mtl" : null;
+    private static void initialize(CommandLine cl) throws Exception {
+        createStaticMetadata(cl);
+        if (cl.hasOption("contentType"))
+            fileContentType = fileContentType(cl.getOptionValue("contentType"));
+        encapsulatedDocLength = cl.hasOption("encapsulatedDocLength");
     }
 
     private static void createStaticMetadata(CommandLine cl) throws Exception {
@@ -172,16 +211,20 @@ public class Pdf2Dcm {
         if (cl.hasOption("f"))
             staticMetadata = SAXReader.parse(cl.getOptionValue("f"));
 
-        CLIUtils.addAttributes(staticMetadata, cl.getOptionValues("m"));
+        CLIUtils.addAttributes(staticMetadata, cl.getOptionValues("s"));
         supplementMissingUIDs(staticMetadata);
         supplementType2Tags(staticMetadata);
     }
 
-    private Attributes createMetadata(FileType fileType) throws Exception {
-        Attributes fileMetadata = SAXReader.parse(StreamUtils.openFileOrURL(fileType.getSampleMetadataFile()));
+    private Attributes createMetadata(FileContentType fileContentType, File srcFile) throws Exception {
+        Attributes fileMetadata = SAXReader.parse(StreamUtils.openFileOrURL(fileContentType.getSampleMetadataFile()));
         fileMetadata.addAll(staticMetadata);
-        if ((fileType == FileType.SLA || fileType == FileType.OBJ) && !fileMetadata.containsValue(Tag.FrameOfReferenceUID))
+        if ((fileContentType == FileContentType.STL
+                || fileContentType == FileContentType.OBJ)
+                && !fileMetadata.containsValue(Tag.FrameOfReferenceUID))
             fileMetadata.setString(Tag.FrameOfReferenceUID, VR.UI, UIDUtils.createUID());
+        if (encapsulatedDocLength)
+            fileMetadata.setLong(Tag.EncapsulatedDocumentLength, VR.UL, srcFile.length());
         return fileMetadata;
     }
 
@@ -200,8 +243,8 @@ public class Pdf2Dcm {
     }
 
     class Pdf2DcmFileVisitor extends SimpleFileVisitor<Path> {
-        private Path srcPath;
-        private Path destPath;
+        private final Path srcPath;
+        private final Path destPath;
 
         Pdf2DcmFileVisitor(Path srcPath, Path destPath) {
             this.srcPath = srcPath;
@@ -237,10 +280,11 @@ public class Pdf2Dcm {
     }
 
     private void convert(Path srcFilePath, Path destFilePath) throws Exception {
-        FileType fileType = FileType.valueOf(srcFilePath);
-        Attributes fileMetadata = createMetadata(fileType);
+        FileContentType fileContentType1 = fileContentType != null
+                                            ? fileContentType : FileContentType.valueOf(srcFilePath);
         File srcFile = srcFilePath.toFile();
         File destFile = destFilePath.toFile();
+        Attributes fileMetadata = createMetadata(fileContentType1, srcFile);
         long fileLength = srcFile.length();
         if (fileLength > MAX_FILE_SIZE)
             throw new IllegalArgumentException(MessageFormat.format(rb.getString("file-too-large"), srcFile));

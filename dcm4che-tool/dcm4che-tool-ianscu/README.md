@@ -20,16 +20,12 @@ Options:
     --availability <code-string>          specify value for Instance
                                           Availability (0008,0056), ONLINE
                                           by default
- -b,--bind <aet[@ip][:port]>              specify AE Title, local address
+ -b,--bind <aet[@ip]>                     specify AE Title, local address
                                           of the Application Entity
                                           provided by this application;
                                           use IANSCU and pick up any valid
                                           local address to bind the socket
-                                          by default. If also a port is
-                                          specified, the Application
-                                          Entity will listening for
-                                          incoming association requests on
-                                          it.
+                                          by default.
     --big-endian                          propose all uncompressed TS,
                                           explicit VR big endian first
                                           (default: implicit VR little
@@ -55,12 +51,12 @@ Options:
                                           password by default
     --key-store <file|url>                file path or URL of key store
                                           containing the private key,
-                                          resource:key.jks by default
+                                          resource:key.p12 by default
     --key-store-pass <password>           password for key store
                                           containing the private key,
                                           'secret' by default
     --key-store-type <storetype>          type of key store containing the
-                                          private key, JKS by default
+                                          private key, PKCS12 by default
     --max-ops-invoked <no>                maximum number of operations
                                           this AE may invoke
                                           asynchronously, unlimited by
@@ -125,7 +121,7 @@ Options:
     --retrieve-url <uri>                  specify value for Retrieve URL
                                           (0008,1190), not included by
                                           default
- -s <[seq/]attr=value>                    specify attributes to overwrite
+ -s <[seq.]attr=value>                    specify attributes to overwrite
                                           referenced object(s). attr can
                                           be specified by keyword or tag
                                           value (in hex), e.g. PatientName
@@ -177,6 +173,12 @@ Options:
                                           specified Cipher Suite. Multiple
                                           Cipher Suites may be enabled by
                                           multiple --tls-cipher options
+    --tls-eia-https                       enable server endpoint
+                                          identification according RFC
+                                          2818: HTTP Over TLS
+    --tls-eia-ldaps                       enable server endpoint
+                                          identification according RFC
+                                          2830: LDAP Extension for TLS
     --tls-noauth                          disable client authentification
                                           for TLS
     --tls-null                            enable TLS connection without
@@ -206,22 +208,26 @@ Options:
                                           --tls-protocol TLSv1.3
     --trust-store <file|url>              file path of key store
                                           containing trusted certificates,
-                                          resource:cacerts.jks by default
+                                          resource:cacerts.p12 by default
     --trust-store-pass <password>         password for key store with
                                           trusted certificates, 'secret'
                                           by default
     --trust-store-type <storetype>        type of key store with trusted
-                                          certificates, JKS by default
+                                          certificates, PKCS12 by default
     --uid-suffix <suffix>                 specify suffix to be appended to
                                           the Study, Series and SOP
                                           Instance UID of referenced
                                           object(s).
     --user <name>                         negotiate user identity with
                                           specified user name
+    --user-jwt <token>                    negotiate user identity with
+                                          specified JSON Web Token
     --user-pass <password>                negotiate user identity with
                                           specified password
     --user-rsp                            negotiate user identity with
                                           positive response requested
+    --user-saml <assertion>               negotiate user identity with
+                                          specified SAML Assertion
  -V,--version                             output version information and
                                           exit
 -

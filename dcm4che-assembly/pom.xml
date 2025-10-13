@@ -42,7 +42,7 @@
   <parent>
     <artifactId>dcm4che-parent</artifactId>
     <groupId>org.dcm4che</groupId>
-    <version>5.21.0_syn5</version>
+    <version>5.34.2</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>dcm4che-assembly</artifactId>
@@ -124,6 +124,48 @@
                 <descriptor>src/main/assembly/bin-dir.xml</descriptor>
               </descriptors>
               <attach>false</attach>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>exportAntProperties</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>validate</phase>
+            <configuration>
+              <target>
+                <!-- <echoproperties />-->
+                <!-- <echo>some.libopencv_java.path=${org.weasis.thirdparty.org.opencv:libopencv_java:so:linux-x86-64}</echo>-->
+              </target>
+              <exportAntProperties>true</exportAntProperties>
+              <!-- @NOTE : exportAntProperties is required for build-helper-maven to read the supplied value property ${groupId:artifactId:type[:classifier]}-->
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>resolve weasis.opencv.native.version - property</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>regex-property</goal>
+            </goals>
+            <configuration>
+              <name>weasis.opencv.native.version</name>
+              <!--suppress UnresolvedMavenProperty -->
+              <value>${org.weasis.thirdparty.org.opencv:libopencv_java:so:linux-x86-64}</value>
+              <regex>.*libopencv_java[\/\\](.*)[\/\\]libopencv_java.*</regex>
+              <replacement>$1</replacement>
+              <failIfNoMatch>true</failIfNoMatch>
             </configuration>
           </execution>
         </executions>
@@ -249,6 +291,11 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che</groupId>
+      <artifactId>dcm4che-qstar</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che</groupId>
       <artifactId>dcm4che-soundex</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -263,8 +310,18 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.dcm4che</groupId>
+      <artifactId>dcm4che-xroad</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.dcm4che.tool</groupId>
-      <artifactId>dcm4che-tool-dcmdump</artifactId>
+      <artifactId>dcm4che-tool-agfa2dcm</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-agfa2sr</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -299,7 +356,22 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-dcmassoc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-dcmbenchmark</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-dcmdir</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-dcmdump</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -349,6 +421,11 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-hl7pdq</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-hl7pix</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -389,7 +466,17 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-json2props</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-json2rst</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-maskpxdata</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -424,6 +511,16 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-planarconfig</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-qstar</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-stgcmtscu</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -444,6 +541,11 @@
     </dependency>
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-stowrsd</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-swappxdata</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -455,6 +557,11 @@
     <dependency>
       <groupId>org.dcm4che.tool</groupId>
       <artifactId>dcm4che-tool-syslogd</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-tpl2xml</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -483,42 +590,62 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.dcm4che.tool</groupId>
+      <artifactId>dcm4che-tool-xroad</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>com.sun.media</groupId>
       <artifactId>jai_imageio</artifactId>
       <version>1.2-pre-dr-b04</version>
     </dependency>
     <dependency>
+      <groupId>com.sun.media</groupId>
+      <artifactId>clib_jiio</artifactId>
+      <classifier>osgi</classifier>
+      <type>zip</type>
+      <version>1.2-pre-dr-b04</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
       <groupId>org.weasis.thirdparty.org.opencv</groupId>
       <artifactId>libopencv_java</artifactId>
-      <version>${weasis.opencv.native.version}</version>
       <type>so</type>
       <classifier>linux-x86-64</classifier>
     </dependency>
     <dependency>
       <groupId>org.weasis.thirdparty.org.opencv</groupId>
       <artifactId>libopencv_java</artifactId>
-      <version>${weasis.opencv.native.version}</version>
       <type>so</type>
-      <classifier>linux-x86</classifier>
+      <classifier>linux-armv7a</classifier>
     </dependency>
     <dependency>
       <groupId>org.weasis.thirdparty.org.opencv</groupId>
       <artifactId>libopencv_java</artifactId>
-      <version>${weasis.opencv.native.version}</version>
-      <type>jnilib</type>
+      <type>so</type>
+      <classifier>linux-aarch64</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.weasis.thirdparty.org.opencv</groupId>
+      <artifactId>libopencv_java</artifactId>
+      <type>dylib</type>
       <classifier>macosx-x86-64</classifier>
     </dependency>
     <dependency>
       <groupId>org.weasis.thirdparty.org.opencv</groupId>
+      <artifactId>libopencv_java</artifactId>
+      <type>dylib</type>
+      <classifier>macosx-aarch64</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.weasis.thirdparty.org.opencv</groupId>
       <artifactId>opencv_java</artifactId>
-      <version>${weasis.opencv.native.version}</version>
       <type>dll</type>
       <classifier>windows-x86</classifier>
     </dependency>
     <dependency>
       <groupId>org.weasis.thirdparty.org.opencv</groupId>
       <artifactId>opencv_java</artifactId>
-      <version>${weasis.opencv.native.version}</version>
       <type>dll</type>
       <classifier>windows-x86-64</classifier>
     </dependency>

@@ -40,10 +40,10 @@
 
 package org.dcm4che3.conf.json;
 
+import jakarta.json.stream.JsonGenerator;
 import org.dcm4che3.net.Connection;
 import org.dcm4che3.util.DateUtils;
 
-import javax.json.stream.JsonGenerator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +107,11 @@ public class JsonWriter {
             gen.write(name, value.intValue());
     }
 
+    public void writeNotNull(String name, Long value) {
+        if (value != null)
+            gen.write(name, value.longValue());
+    }
+
     public void writeNotNullOrDef(String name, TimeZone value, TimeZone defVal) {
         if (value != null && !value.equals(defVal))
             gen.write(name, value.getID());
@@ -161,6 +166,11 @@ public class JsonWriter {
                 gen.write(value);
             gen.writeEnd();
         }
+    }
+
+    public void writeNotDef(String name, long value, long defVal) {
+        if (value != defVal)
+            gen.write(name, value);
     }
 
     public void writeNotDef(String name, int value, int defVal) {

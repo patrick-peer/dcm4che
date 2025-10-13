@@ -40,14 +40,14 @@
 
 package org.dcm4che3.conf.json;
 
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParsingException;
 import org.dcm4che3.conf.api.ConfigurationException;
 import org.dcm4che3.io.BasicBulkDataDescriptor;
 import org.dcm4che3.net.*;
 import org.dcm4che3.net.hl7.HL7ApplicationInfo;
 
-import javax.json.stream.JsonGenerator;
-import javax.json.stream.JsonParser;
-import javax.json.stream.JsonParsingException;
 import java.util.*;
 
 /**
@@ -429,6 +429,8 @@ public class JsonConfiguration {
             writer.writeNotDef("dcmRetrieveTimeoutTotal",
                     conn.isRetrieveTimeoutTotal(), false);
             writer.writeNotDef("dcmIdleTimeout", conn.getIdleTimeout(), Connection.NO_TIMEOUT);
+            writer.writeNotDef("dcmAATimeout",
+                    conn.getAbortTimeout(), Connection.DEF_ABORT_TIMEOUT);
             writer.writeNotDef("dcmTCPCloseDelay",
                     conn.getSocketCloseDelay(), Connection.DEF_SOCKETDELAY);
             writer.writeNotDef("dcmTCPSendBufferSize",
@@ -449,6 +451,7 @@ public class JsonConfiguration {
             writer.writeNotDef("dcmPackPDV", conn.isPackPDV(), true);
             writer.writeNotEmpty("dcmTLSProtocol", conn.getTlsProtocols(), Connection.DEFAULT_TLS_PROTOCOLS);
             writer.writeNotDef("dcmTLSNeedClientAuth", conn.isTlsNeedClientAuth(), true);
+            writer.writeNotNullOrDef("dcmTLSEndpointIdentificationAlgorithm", conn.getTlsEndpointIdentificationAlgorithm(), null);
             writer.writeEnd();
         }
         writer.writeEnd();
@@ -530,6 +533,9 @@ public class JsonConfiguration {
                             case "dcmIdleTimeout":
                                 conn.setIdleTimeout(reader.intValue());
                                 break;
+                            case "dcmAATimeout":
+                                conn.setAbortTimeout(reader.intValue());
+                                break;
                             case "dcmTCPCloseDelay":
                                 conn.setSocketCloseDelay(reader.intValue());
                                 break;
@@ -553,6 +559,10 @@ public class JsonConfiguration {
                                 break;
                             case "dcmTLSProtocol":
                                 conn.setTlsProtocols(reader.stringArray());
+                                break;
+                            case "dcmTLSEndpointIdentificationAlgorithm":
+                                conn.setTlsEndpointIdentificationAlgorithm(
+                                        Connection.EndpointIdentificationAlgorithm.valueOf(reader.stringValue()));
                                 break;
                             case "dcmSendPDULength":
                                 conn.setSendPDULength(reader.intValue());
@@ -613,7 +623,11 @@ public class JsonConfiguration {
             writer.writeNotEmpty("dcmPreferredTransferSyntax", ae.getPreferredTransferSyntaxes());
             writer.writeNotEmpty("dcmAcceptedCallingAETitle", ae.getAcceptedCallingAETitles());
             writer.writeNotEmpty("dcmOtherAETitle", ae.getOtherAETitles());
+            writer.writeNotEmpty("dcmNoAsyncModeCalledAETitle", ae.getNoAsyncModeCalledAETitles());
             writer.writeNotEmpty("dcmMasqueradeCallingAETitle", ae.getMasqueradeCallingAETitles());
+            writer.writeNotEmpty("dcmMasqueradeCalledAETitle", ae.getMasqueradeCalledAETitles());
+            writer.writeNotNullOrDef("dcmShareTransferCapabilitiesFromAETitle",
+                    ae.getShareTransferCapabilitiesFromAETitle(), null);
             writer.writeNotNullOrDef("hl7ApplicationName", ae.getHl7ApplicationName(), null);
             for (JsonConfigurationExtension ext : extensions)
                 ext.storeTo(ae, writer);
@@ -687,8 +701,17 @@ public class JsonConfiguration {
                             case "dcmOtherAETitle":
                                 ae.setOtherAETitles(reader.stringArray());
                                 break;
+                            case "dcmNoAsyncModeCalledAETitle":
+                                ae.setNoAsyncModeCalledAETitles(reader.stringArray());
+                                break;
                             case "dcmMasqueradeCallingAETitle":
                                 ae.setMasqueradeCallingAETitles(reader.stringArray());
+                                break;
+                            case "dcmMasqueradeCalledAETitle":
+                                ae.setMasqueradeCalledAETitles(reader.stringArray());
+                                break;
+                            case "dcmShareTransferCapabilitiesFromAETitle":
+                                ae.setShareTransferCapabilitiesFromAETitle(reader.stringValue());
                                 break;
                             case "hl7ApplicationName":
                                 ae.setHl7ApplicationName(reader.stringValue());
@@ -735,11 +758,12 @@ public class JsonConfiguration {
         writer.writeNotNullOrDef("dicomTransferRole", tc.getRole().toString(), null);
         writer.writeNotEmpty("dicomTransferSyntax", tc.getTransferSyntaxes());
         if (extended) {
-            writer.writeNotEmpty("dcmPreferredTransferSyntax", tc.getPreferredTransferSyntaxes());
             EnumSet<QueryOption> queryOpts = tc.getQueryOptions();
             StorageOptions storageOpts = tc.getStorageOptions();
-            if (queryOpts != null || storageOpts != null) {
+            String[] preferredTransferSyntaxes = tc.getPreferredTransferSyntaxes();
+            if (queryOpts != null || storageOpts != null || preferredTransferSyntaxes.length > 0) {
                 writer.writeStartObject("dcmTransferCapability");
+                writer.writeNotEmpty("dcmPreferredTransferSyntax", preferredTransferSyntaxes);
                 if (queryOpts != null) {
                     writer.writeNotDef("dcmRelationalQueries",
                             queryOpts.contains(QueryOption.RELATIONAL), false);

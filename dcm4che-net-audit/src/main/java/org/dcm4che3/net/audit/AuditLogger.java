@@ -38,41 +38,6 @@
 
 package org.dcm4che3.net.audit;
 
-import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.lang.management.ManagementFactory;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URI;
-import java.net.UnknownHostException;
-import java.nio.charset.Charset;
-import java.security.AccessController;
-import java.security.GeneralSecurityException;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.GregorianCalendar;
-import java.util.List;
-import java.util.Locale;
-import java.util.Random;
-import java.util.TimeZone;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-
-import javax.net.ssl.SSLContext;
-
 import org.dcm4che3.audit.*;
 import org.dcm4che3.audit.AuditMessages.RoleIDCode;
 import org.dcm4che3.net.Connection;
@@ -84,6 +49,18 @@ import org.dcm4che3.util.StreamUtils;
 import org.dcm4che3.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.net.ssl.SSLContext;
+import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.net.*;
+import java.nio.charset.Charset;
+import java.security.AccessController;
+import java.security.GeneralSecurityException;
+import java.security.PrivilegedAction;
+import java.util.*;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
@@ -215,7 +192,7 @@ public class AuditLogger {
     private boolean includeBOM = true;
     private boolean formatXML = false;
     private Boolean installed;
-    private Boolean includeInstanceUID = false;
+    private boolean includeInstanceUID = false;
     private File spoolDirectory;
     private String spoolDirectoryURI;
     private String spoolFileNamePrefix = "audit";
@@ -226,7 +203,6 @@ public class AuditLogger {
             new ArrayList<AuditSuppressCriteria>(0);
     private final List<Connection> conns = new ArrayList<Connection>(1);
 
-    private transient MessageBuilder builder;
     private transient ActiveConnection activeConnection;
     private transient ScheduledFuture<?> retryTimer;
     private transient Exception lastException;
@@ -509,11 +485,11 @@ public class AuditLogger {
         this.installed = installed;
     }
 
-    public Boolean isIncludeInstanceUID() {
+    public boolean isIncludeInstanceUID() {
         return includeInstanceUID;
     }
 
-    public void setIncludeInstanceUID(Boolean includeInstanceUID) {
+    public void setIncludeInstanceUID(boolean includeInstanceUID) {
         this.includeInstanceUID = includeInstanceUID;
     }
 
@@ -672,6 +648,7 @@ public class AuditLogger {
         setTimestampInUTC(from.timestampInUTC);
         setIncludeBOM(from.includeBOM);
         setFormatXML(from.formatXML);
+        setIncludeInstanceUID(from.includeInstanceUID);
         setSpoolDirectoryURI(from.spoolDirectoryURI);
         setSpoolFileNamePrefix(from.spoolFileNamePrefix);
         setSpoolFileNameSuffix(from.spoolFileNameSuffix);
@@ -727,21 +704,14 @@ public class AuditLogger {
         if (isAuditMessageSuppressed(msg))
             return SendStatus.SUPPRESSED;
 
-        return sendMessage(builder().createMessage(timeStamp, msg));
+        return sendMessage(new MessageBuilder().createMessage(timeStamp, msg));
     }
 
     public SendStatus write(Calendar timeStamp, Severity severity,
                             byte[] data, int off, int len)
             throws IncompatibleConnectionException, GeneralSecurityException, IOException {
         return sendMessage(
-                builder().createMessage(timeStamp, severity, data, off, len));
-    }
-
-    private MessageBuilder builder() {
-        if (builder == null)
-            builder = new MessageBuilder();
-
-        return builder;
+                new MessageBuilder().createMessage(timeStamp, severity, data, off, len));
     }
 
     private SendStatus sendMessage(DatagramPacket msg) throws IncompatibleConnectionException,
@@ -981,7 +951,7 @@ public class AuditLogger {
             try {
                 reset();
                 writeHeader(severityOf(msg), timeStamp);
-                AuditMessages.toXML(msg, builder, formatXML, encoding, schemaURI);
+                AuditMessages.toXML(msg, this, formatXML, encoding, schemaURI);
             } catch (IOException e) {
                 assert false : e;
             }
@@ -1014,7 +984,10 @@ public class AuditLogger {
             else
                 write('-');
             write(' ');
-            write(applicationName().getBytes(encoding));
+            write(StringUtils.replaceNonPrintASCII(
+                    StringUtils.truncate(applicationName().trim(), 48),
+                    '_')
+                    .getBytes(encoding));
             write(' ');
             write(processID.getBytes(encoding));
             write(' ');

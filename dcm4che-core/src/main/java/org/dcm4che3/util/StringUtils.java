@@ -52,12 +52,7 @@ import java.util.regex.Pattern;
 public class StringUtils {
 
     public static String LINE_SEPARATOR = AccessController.doPrivileged(
-            new PrivilegedAction<String>() {
-                public String run() {
-                    return System.getProperty("line.separator");
-                }
-            }
-         );
+            (PrivilegedAction<String>) () -> System.getProperty("line.separator"));
 
     public static String[] EMPTY_STRING = {};
 
@@ -193,10 +188,16 @@ public class StringUtils {
         return s.substring(0, endIndex);
     }
 
-    public static int parseIS(String s) {
+    public static long parseIS(String s) {
         return s != null && s.length() != 0
-                ? (int) Long.parseLong(s.charAt(0) == '+' ? s.substring(1) : s)
-                : 0;
+                ? Long.parseLong(s)
+                : 0L;
+    }
+
+    public static long parseUV(String s) {
+        return s != null && s.length() != 0
+                ? Long.parseUnsignedLong(s)
+                : 0L;
     }
 
     public static double parseDS(String s) {
@@ -289,6 +290,26 @@ public class StringUtils {
         return s.length() > maxlen ? s.substring(0, maxlen) : s;
     }
 
+    /**
+     * Returns a {@code String} resulting from replacing all non-ASCII and non-printable characters
+     * in the specified {@code String} with {@code replacement} character.
+     *
+     * @param s           - the specified string
+     * @param replacement - the replacement character
+     * @return a string derived from {@code s) by replacing all non-ASCII and non-printable characters
+     * with {@code replacement}.
+     */
+    public static String replaceNonPrintASCII(String s, char replacement) {
+        char[] cs = s.toCharArray();
+        int count = 0;
+        for (int i = 0; i < cs.length; i++) {
+            if (cs[i] > 0x20 && cs[i] < 0x7F) continue;
+            cs[i] = replacement;
+            count++;
+        }
+        return count > 0 ? new String(cs) : s;
+    }
+
     public static <T> boolean equals(T o1, T o2) {
         return o1 == o2 || o1 != null && o1.equals(o2);
     }
@@ -306,10 +327,11 @@ public class StringUtils {
                 j = i-1;
                 break;
             }
+            int k = s.lastIndexOf(':', j);
             String val = s.startsWith("env.", i+2)
-                ? System.getenv(s.substring(i+6, j))
-                : System.getProperty(s.substring(i+2, j));
-            sb.append(val != null ? val : s.substring(i, j+1));
+                ? System.getenv(s.substring(i+6, k < i ? j : k))
+                : System.getProperty(s.substring(i+2, k < i ? j : k));
+            sb.append(val != null ? val : k < 0 ? s.substring(i, j+1) : s.substring(k+1, j));
             i = s.indexOf("${", j+1);
         } while (i != -1);
         sb.append(s.substring(j+1));

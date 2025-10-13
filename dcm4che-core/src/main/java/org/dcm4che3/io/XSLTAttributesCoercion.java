@@ -42,6 +42,8 @@ package org.dcm4che3.io;
 
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.AttributesCoercion;
+import org.dcm4che3.data.Tag;
+import org.dcm4che3.data.VR;
 
 import javax.xml.transform.Templates;
 
@@ -107,11 +109,15 @@ public class XSLTAttributesCoercion implements AttributesCoercion {
     }
 
     @Override
-    public void coerce(Attributes attrs, Attributes modified) {
+    public void coerce(Attributes attrs, Attributes modified) throws Exception {
         Attributes newAttrs;
         try {
             newAttrs = SAXTransformer.transform(
                     attrs, templates, includeNameSpaceDeclaration, includeKeyword, setupTransformer);
+            String[] cscodes = attrs.getStrings(Tag.SpecificCharacterSet);
+            if (cscodes != null) {
+                newAttrs.setString(Tag.SpecificCharacterSet, VR.CS, cscodes);
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

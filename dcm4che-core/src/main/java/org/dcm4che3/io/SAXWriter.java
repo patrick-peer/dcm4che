@@ -139,7 +139,8 @@ public class SAXWriter implements DicomInputHandler {
 
     private void startDocument() throws SAXException {
         ch.startDocument();
-        startElement("NativeDicomModel", "xml:space", "preserve");
+        atts.addAttribute("", "space", "xml:space", "NMTOKEN", "preserve");
+        startElement("NativeDicomModel");
     }
 
     private void endDocument() throws SAXException {
@@ -235,7 +236,7 @@ public class SAXWriter implements DicomInputHandler {
             throws IOException {
         int tag = dis.tag();
         VR vr = dis.vr();
-        int len = dis.length();
+        long len = dis.unsignedLength();
         if (TagUtils.isGroupLength(tag) || TagUtils.isPrivateCreator(tag)) {
             dis.readValue(dis, attrs);
         } else if (dis.isExcludeBulkData()) {
@@ -255,7 +256,8 @@ public class SAXWriter implements DicomInputHandler {
                 } else {
                     byte[] b = dis.readValue();
                     if (tag == Tag.TransferSyntaxUID
-                            || tag == Tag.SpecificCharacterSet)
+                            || tag == Tag.SpecificCharacterSet
+                            || tag == Tag.PixelRepresentation)
                         attrs.setBytes(tag, vr, b);
                     if (vr.isInlineBinary())
                         writeInlineBinary(dis.bigEndian()
@@ -273,13 +275,13 @@ public class SAXWriter implements DicomInputHandler {
     }
 
     private void addAttributes(int tag, VR vr, String privateCreator) {
-        if (privateCreator != null)
-            tag &= 0xffff00ff;
         if (includeKeyword) {
             String keyword = ElementDictionary.keywordOf(tag, privateCreator);
             if (keyword != null && !keyword.isEmpty())
                 addAttribute("keyword", keyword);
         }
+        if (privateCreator != null)
+            tag &= 0xffff00ff;
         addAttribute("tag", TagUtils.toHexString(tag));
         if (privateCreator != null)
             addAttribute("privateCreator", privateCreator);
@@ -301,7 +303,7 @@ public class SAXWriter implements DicomInputHandler {
     @Override
     public void readValue(DicomInputStream dis, Fragments frags)
             throws IOException {
-        int len = dis.length();
+        long len = dis.unsignedLength();
         if (dis.isExcludeBulkData()) {
             dis.skipFully(len);
         } else try {

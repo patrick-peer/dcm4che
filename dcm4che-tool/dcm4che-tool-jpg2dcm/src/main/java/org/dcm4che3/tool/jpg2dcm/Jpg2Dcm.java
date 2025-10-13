@@ -48,6 +48,7 @@ import org.dcm4che3.imageio.codec.mpeg.MPEG2Parser;
 import org.dcm4che3.io.DicomOutputStream;
 import org.dcm4che3.io.SAXReader;
 import org.dcm4che3.tool.common.CLIUtils;
+import org.dcm4che3.util.ByteUtils;
 import org.dcm4che3.util.StreamUtils;
 import org.dcm4che3.util.UIDUtils;
 import org.xml.sax.SAXException;
@@ -62,6 +63,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.ResourceBundle;
+
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
@@ -86,6 +88,9 @@ public class Jpg2Dcm {
 
     private boolean noAPPn;
     private boolean photo;
+    private String tsuid;
+    private ContentType contentType;
+    private long fragmentLength = 4294967294L; // 2^32-2;
     private Attributes staticMetadata = new Attributes();
     private byte[] buf = new byte[BUFFER_SIZE];
 
@@ -97,11 +102,28 @@ public class Jpg2Dcm {
         this.photo = photo;
     }
 
+    private void setTSUID(String tsuid) {
+        this.tsuid = tsuid;
+    }
+
+    public void setContentType(String s) {
+        ContentType contentType = ContentType.of(s);
+        if (contentType == null)
+            throw new IllegalArgumentException(MessageFormat.format(rb.getString("unsupported-content-type"), s));
+        this.contentType = contentType;
+    }
+
+    public void setFragmentLength(long fragmentLength) {
+        if (fragmentLength < 1024 || fragmentLength > 4294967294L)
+            throw new IllegalArgumentException("Maximal Fragment Length must be in the range of [1024, 4294967294].");
+        this.fragmentLength = fragmentLength & ~1;
+    }
+
     public static void main(String[] args) {
         try {
             CommandLine cl = parseComandLine(args);
             Jpg2Dcm main = new Jpg2Dcm();
-            @SuppressWarnings("unchecked") final List<String> argList = cl.getArgList();
+            List<String> argList = cl.getArgList();
             int argc = argList.size();
             if (argc < 2)
                 throw new ParseException(rb.getString("missing"));
@@ -112,6 +134,11 @@ public class Jpg2Dcm {
                         MessageFormat.format(rb.getString("nodestdir"), dest));
             main.setNoAPPn(cl.hasOption("no-app"));
             main.setPhoto(cl.hasOption("xc"));
+            main.setTSUID(cl.getOptionValue("tsuid"));
+            if (cl.hasOption("content-type"))
+                main.setContentType(cl.getOptionValue("content-type"));
+            if (cl.hasOption("F"))
+                main.setFragmentLength(Long.parseLong(cl.getOptionValue("F")));
             createStaticMetadata(cl, main.staticMetadata);
             main.convert(cl.getArgList());
         } catch (ParseException e) {
@@ -128,10 +155,9 @@ public class Jpg2Dcm {
     private static CommandLine parseComandLine(String[] args) throws ParseException {
         Options opts = new Options();
         CLIUtils.addCommonOptions(opts);
-        opts.addOption(Option.builder("m")
+        opts.addOption(Option.builder("s")
                 .hasArgs()
-                .argName("[seq/]attr=value")
-                .valueSeparator()
+                .argName("[seq.]attr=value")
                 .desc(rb.getString("metadata"))
                 .build());
         opts.addOption(Option.builder("f")
@@ -145,9 +171,27 @@ public class Jpg2Dcm {
                 .desc(rb.getString("xc"))
                 .build());
         opts.addOption(Option.builder()
+                .longOpt("tsuid")
+                .hasArg()
+                .argName("uid")
+                .desc(rb.getString("tsuid"))
+                .build());
+        opts.addOption(Option.builder()
+                .longOpt("content-type")
+                .hasArg()
+                .argName("type")
+                .desc(rb.getString("content-type"))
+                .build());
+        opts.addOption(Option.builder()
                 .longOpt("no-app")
                 .hasArg(false)
                 .desc(rb.getString("no-app"))
+                .build());
+        opts.addOption(Option.builder("F")
+                .longOpt("fragment")
+                .hasArg()
+                .argName("length")
+                .desc(rb.getString("fragment"))
                 .build());
         return CLIUtils.parseComandLine(args, opts, rb, Jpg2Dcm.class);
     }
@@ -156,7 +200,7 @@ public class Jpg2Dcm {
         if (cl.hasOption("f"))
             SAXReader.parse(cl.getOptionValue("f"), staticMetadata);
 
-        CLIUtils.addAttributes(staticMetadata, cl.getOptionValues("m"));
+        CLIUtils.addAttributes(staticMetadata, cl.getOptionValues("s"));
         supplementMissingUIDs(staticMetadata);
         supplementMissingValue(staticMetadata, Tag.SeriesNumber, "999");
         supplementMissingValue(staticMetadata, Tag.InstanceNumber, "1");
@@ -215,45 +259,64 @@ public class Jpg2Dcm {
     }
 
     private void convert(Path srcFilePath, Path destFilePath) throws Exception {
-        ContentType fileType = ContentType.probe(srcFilePath);
-        Attributes fileMetadata = SAXReader.parse(StreamUtils.openFileOrURL(fileType.getSampleMetadataFile(photo)));
+        ContentType contentType = this.contentType;
+        if (contentType == null) {
+            String probeContentType = Files.probeContentType(srcFilePath);
+            if (probeContentType == null) {
+                System.out.println(MessageFormat.format(rb.getString("probe-content-type-failed"), srcFilePath));
+                return;
+            }
+            contentType = ContentType.of(probeContentType);
+            if (contentType == null) {
+                System.out.println(MessageFormat.format(
+                        rb.getString("unsupported-content-type-of-file"), probeContentType, srcFilePath));
+                return;
+            }
+        }
+        Attributes fileMetadata = SAXReader.parse(StreamUtils.openFileOrURL(contentType.getSampleMetadataFile(photo)));
         fileMetadata.addAll(staticMetadata);
-        supplementMissingValue(fileMetadata, Tag.SOPClassUID, fileType.getSOPClassUID(photo));
+        supplementMissingValue(fileMetadata, Tag.SOPClassUID, contentType.getSOPClassUID(photo));
         try (SeekableByteChannel channel = Files.newByteChannel(srcFilePath);
                 DicomOutputStream dos = new DicomOutputStream(destFilePath.toFile())) {
-            XPEGParser parser = fileType.newParser(channel);
+            XPEGParser parser = contentType.newParser(channel);
             parser.getAttributes(fileMetadata);
-            dos.writeDataset(fileMetadata.createFileMetaInformation(parser.getTransferSyntaxUID()), fileMetadata);
+            byte[] prefix = ByteUtils.EMPTY_BYTES;
+            if (noAPPn && parser.getPositionAfterAPPSegments() > 0) {
+                channel.position(parser.getPositionAfterAPPSegments());
+                prefix = new byte[] { (byte) 0xFF, (byte) JPEG.SOI };
+            } else {
+                channel.position(parser.getCodeStreamPosition());
+            }
+            long codeStreamSize = channel.size() - channel.position() + prefix.length;
+            dos.writeDataset(fileMetadata.createFileMetaInformation(
+                    tsuid != null ? tsuid : parser.getTransferSyntaxUID(codeStreamSize > fragmentLength)),
+                            fileMetadata);
             dos.writeHeader(Tag.PixelData, VR.OB, -1);
             dos.writeHeader(Tag.Item, null, 0);
-            if (noAPPn && parser.getPositionAfterAPPSegments() > 0) {
-                copyPixelData(channel, parser.getPositionAfterAPPSegments(), dos,
-                        (byte) 0xFF, (byte) JPEG.SOI);
-            } else {
-                copyPixelData(channel, parser.getCodeStreamPosition(), dos);
-            }
+            do {
+                long len = Math.min(codeStreamSize, fragmentLength);
+                dos.writeHeader(Tag.Item, null, (int) ((len + 1) & ~1));
+                dos.write(prefix);
+                copy(channel, len - prefix.length, dos);
+                if ((len & 1) != 0)
+                    dos.write(0);
+                prefix = ByteUtils.EMPTY_BYTES;
+                codeStreamSize -= len;
+            } while (codeStreamSize > 0);
             dos.writeHeader(Tag.SequenceDelimitationItem, null, 0);
         }
         System.out.println(MessageFormat.format(rb.getString("converted"), srcFilePath, destFilePath));
     }
 
-    private void copyPixelData(SeekableByteChannel channel, long position, DicomOutputStream dos, byte... prefix)
-            throws IOException {
-        long codeStreamSize = channel.size() - position + prefix.length;
-        dos.writeHeader(Tag.Item, null, (int) ((codeStreamSize + 1) & ~1));
-        dos.write(prefix);
-        channel.position(position);
-        copy(channel, dos);
-        if ((codeStreamSize & 1) != 0)
-            dos.write(0);
-    }
-
-    private void copy(ByteChannel in, OutputStream out) throws IOException {
+    private void copy(ByteChannel in, long len, OutputStream out) throws IOException {
         ByteBuffer bb = ByteBuffer.wrap(buf);
         int read;
-        while ((read = in.read(bb)) > 0) {
+        while (len > 0){
+            bb.position(0);
+            bb.limit((int) Math.min(len, buf.length));
+            read = in.read(bb);
             out.write(buf, 0, read);
-            bb.clear();
+            len -= read;
         }
     }
 
@@ -308,14 +371,13 @@ public class Jpg2Dcm {
             }
         };
 
-        static ContentType probe(Path path) throws IOException {
-            String type = Files.probeContentType(path);
-            if (type == null)
-                throw new IllegalArgumentException(
-                        MessageFormat.format(rb.getString("unsupported-file-ext"), path));
+        static ContentType of(String type) {
             switch (type.toLowerCase()) {
                 case "image/jpeg":
                 case "image/jp2":
+                case "image/j2c":
+                case "image/jph":
+                case "image/jphc":
                     return ContentType.IMAGE_JPEG;
                 case "video/mpeg":
                     return ContentType.VIDEO_MPEG;
@@ -323,8 +385,7 @@ public class Jpg2Dcm {
                 case "video/quicktime":
                     return ContentType.VIDEO_MP4;
             }
-            throw new IllegalArgumentException(
-                    MessageFormat.format(rb.getString("unsupported-content-type"), type, path));
+            return null;
         }
 
         String getSampleMetadataFile(boolean photo) {

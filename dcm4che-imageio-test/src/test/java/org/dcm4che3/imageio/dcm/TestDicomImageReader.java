@@ -54,7 +54,7 @@ import java.security.MessageDigest;
 import javax.imageio.ImageIO;
 import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.ImageInputStream;
-import javax.xml.bind.annotation.adapters.HexBinaryAdapter;
+import jakarta.xml.bind.annotation.adapters.HexBinaryAdapter;
 
 import org.assertj.core.api.Fail;
 import org.dcm4che3.data.Attributes;
@@ -71,6 +71,8 @@ import org.dcm4che3.util.SafeClose;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
@@ -78,6 +80,7 @@ import org.junit.Test;
  *
  */
 public class TestDicomImageReader {
+    private static final Logger log = LoggerFactory.getLogger(TestDicomImageReader.class);
 
 	private static final String TEST_DATA_DIR = "target/test-data/";
     private static final String CPLX_P02 = "cplx_p02.dcm";
@@ -86,6 +89,7 @@ public class TestDicomImageReader {
     private static final String US_MF_RLE = "US-PAL-8-10x-echo";
     private static final String US_MF_RLE_CHECKSUM = "5F4909DEDD7D1E113CC69172C693B4705FEE5B46";
     private static final String REPORT_DFL = "report_dfl";
+    private static final String NM_JPLY = "NM1_JPLY";
 
     DicomImageReader reader;
     
@@ -136,7 +140,21 @@ public class TestDicomImageReader {
             testReadPostPixelData(is);
         }
     }
-    
+
+    /**
+     * This test previously throw an out of memory exception, shows that the changes work.
+     * @throws IOException
+     */
+    @Test
+    public void testReadCompressedSingleFrame_fromImageInputStream() throws IOException {
+        File file = new File("target/test-data/"+ NM_JPLY);
+        try(FileImageInputStream is = new FileImageInputStream(file)) {
+            log.trace("Reading file {} iis {}", file, is);
+            reader.setInput(is);
+            Raster r = reader.readRaster(0, reader.getDefaultReadParam());
+        }
+    }
+
     @Test 
     public void testReadCompressedPostPixelData_fromInputStream() throws IOException {
         try(FileInputStream is = new FileInputStream(new File("target/test-data/" + US_MF_RLE))) {
@@ -208,11 +226,11 @@ public class TestDicomImageReader {
         DicomImageReader.generateOffsetLengths(pixelDataFragments, offsets.length, basicOffsetTable, longOffsets[0]);
         assertThat(pixelDataFragments).hasSize(offsets.length)
         .contains(
-                new BulkData("compressedPixelData://",longOffsets[0]+8,(int) (longOffsets[1]-longOffsets[0]-8),false),
-                new BulkData("compressedPixelData://",longOffsets[1]+8,(int) (longOffsets[2]-longOffsets[1]-8),false),
-                new BulkData("compressedPixelData://",longOffsets[2]+8,(int) (longOffsets[3]-longOffsets[2]-8),false),
-                new BulkData("compressedPixelData://",longOffsets[3]+8,(int) (longOffsets[4]-longOffsets[3]-8),false),
-                new BulkData("compressedPixelData://",longOffsets[4]+8,(int) (longOffsets[5]-longOffsets[4]-8),false),
+                new BulkData("compressedPixelData://",longOffsets[0]+8, longOffsets[1]-longOffsets[0]-8,false),
+                new BulkData("compressedPixelData://",longOffsets[1]+8, longOffsets[2]-longOffsets[1]-8,false),
+                new BulkData("compressedPixelData://",longOffsets[2]+8, longOffsets[3]-longOffsets[2]-8,false),
+                new BulkData("compressedPixelData://",longOffsets[3]+8, longOffsets[4]-longOffsets[3]-8,false),
+                new BulkData("compressedPixelData://",longOffsets[4]+8, longOffsets[5]-longOffsets[4]-8,false),
                 new BulkData("compressedPixelData://",longOffsets[5]+8,-1,false),
                 new BulkData("compressedPixelData://", -1, -1, false),
                 new BulkData("compressedPixelData://", -1, -1, false));
@@ -310,7 +328,7 @@ public class TestDicomImageReader {
         Attributes attrs;
         try {
             dis.setIncludeBulkData(includeBulkData);
-            attrs = dis.readDataset(-1, -1);
+            attrs = dis.readDataset();
         } finally {
             SafeClose.close(dis);
         }

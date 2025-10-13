@@ -145,33 +145,33 @@ public class MP4Parser implements XPEGParser {
     }
 
     @Override
-    public String getTransferSyntaxUID() throws XPEGParserException {
+    public String getTransferSyntaxUID(boolean fragmented) throws XPEGParserException {
         switch (visualSampleEntryType) {
             case VisualSampleEntryTypeAVC1:
                 switch (profile_idc) {
                     case 100: // High Profile
                         if (level_idc <= 41)
                             return isBDCompatible()
-                                    ? UID.MPEG4AVCH264BDCompatibleHighProfileLevel41
-                                    : UID.MPEG4AVCH264HighProfileLevel41;
+                                    ? fragmented ? UID.MPEG4HP41BDF : UID.MPEG4HP41BD
+                                    : fragmented ? UID.MPEG4HP41F : UID.MPEG4HP41;
                         else if (level_idc <= 42)
-                            // TODO: distinguish between MPEG4AVCH264HighProfileLevel42For2DVideo
-                            //  and MPEG4AVCH264HighProfileLevel42For3DVideo
-                            return UID.MPEG4AVCH264HighProfileLevel42For2DVideo;
+                            // TODO: distinguish between MPEG4HP422D
+                            //  and MPEG4HP423D
+                            return fragmented ? UID.MPEG4HP422DF : UID.MPEG4HP422D;
                         break;
                     case 128: // Stereo High Profile
                         if (level_idc <= 42)
-                            return UID.MPEG4AVCH264StereoHighProfileLevel42;
+                            return UID.MPEG4HP42STEREO;
                         break;
                 }
                 throw profileLevelNotSupported("MPEG-4 AVC profile_idc/level_idc: %d/%d not supported");
             case VisualSampleEntryTypeHVC1:
-                if (level_idc <= 51) {
+                if (level_idc <= 153) {
                     switch (profile_idc) {
                         case 1: // Main Profile
-                            return UID.HEVCH265MainProfileLevel51;
+                            return UID.HEVCMP51;
                         case 2: // Main 10 Profile
-                            return UID.HEVCH265Main10ProfileLevel51;
+                            return UID.HEVCM10P51;
                     }
                 }
                 throw profileLevelNotSupported("MPEG-4 HEVC profile_idc/level_idc: %d/%d not supported");
@@ -194,7 +194,7 @@ public class MP4Parser implements XPEGParser {
     private Box nextBox(SeekableByteChannel channel, long remaining) throws IOException {
         long pos = channel.position();
         long type = readLong(channel);
-        int size = (int) (type >> 32);
+        long size = type >>> 32;
         return new Box((int) type, pos + (size == 0 ? remaining : size == 1 ? readLong(channel) : size));
     }
 

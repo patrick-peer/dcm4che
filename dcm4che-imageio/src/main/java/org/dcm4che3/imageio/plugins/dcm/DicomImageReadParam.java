@@ -51,11 +51,14 @@ public class DicomImageReadParam extends ImageReadParam {
     private float windowCenter;
     private float windowWidth;
     private boolean autoWindowing = true;
+    private boolean addAutoWindow = false;
     private boolean preferWindow = true;
+    private boolean ignorePresentationLUTShape = false;
     private int windowIndex;
     private int voiLUTIndex;
     private int overlayActivationMask = 0xf;
     private int overlayGrayscaleValue = 0xffff;
+    private int overlayRGBValue = 0xffffff;
     private Attributes presentationState;
 
     public float getWindowCenter() {
@@ -82,12 +85,35 @@ public class DicomImageReadParam extends ImageReadParam {
         this.autoWindowing = autoWindowing;
     }
 
+    /** Specifies if the calculated Window Center/Width shall be added to the metadata.
+     * @return {@code true} if the calculated Window Center/Width will be added to the metadata.
+     */
+    public boolean isAddAutoWindow() {
+        return addAutoWindow;
+    }
+
+    /** Specifies if the calculated Window Center/Width shall be added to the metadata.
+     * By default the calculated Window Center/Width is not added to the metadata.
+     * @param addAutoWindow {@code true} if the calculated Window Center/Width shall be added to the metadata.
+     */
+    public void setAddAutoWindow(boolean addAutoWindow) {
+        this.addAutoWindow = addAutoWindow;
+    }
+
     public boolean isPreferWindow() {
         return preferWindow;
     }
 
     public void setPreferWindow(boolean preferWindow) {
         this.preferWindow = preferWindow;
+    }
+
+    public boolean isIgnorePresentationLUTShape() {
+        return ignorePresentationLUTShape;
+    }
+
+    public void setIgnorePresentationLUTShape(boolean ignorePresentationLUTShape) {
+        this.ignorePresentationLUTShape = ignorePresentationLUTShape;
     }
 
     public int getWindowIndex() {
@@ -130,4 +156,15 @@ public class DicomImageReadParam extends ImageReadParam {
         this.overlayGrayscaleValue = overlayGrayscaleValue;
     }
 
+    public int getOverlayRGBValue() {
+        return overlayRGBValue;
+    }
+
+    public void setOverlayRGBValue(int overlayRGBValue) {
+        this.overlayRGBValue = overlayRGBValue;
+    }
+
+    public int[] getOverlayRGBPixelValue() {
+        return new int[]{(overlayRGBValue >> 16) & 0xff, (overlayRGBValue >> 8) & 0xff, overlayRGBValue & 0xff};
+    }
 }

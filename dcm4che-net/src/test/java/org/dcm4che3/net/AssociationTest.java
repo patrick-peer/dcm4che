@@ -1,173 +1,106 @@
 package org.dcm4che3.net;
 
-import static org.junit.Assert.fail;
-
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.GeneralSecurityException;
+import java.net.SocketException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
-import org.dcm4che3.data.UID;
-import org.dcm4che3.net.TransferCapability.Role;
-import org.dcm4che3.net.pdu.AAssociateRQ;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.dcm4che3.data.Attributes;
+import org.dcm4che3.data.Tag;
+import org.dcm4che3.data.VR;
+import org.dcm4che3.net.pdu.AAssociateAC;
+import org.dcm4che3.net.pdu.AAssociateRJ;
+import org.dcm4che3.net.pdu.PresentationContext;
+import org.junit.Assert;
 import org.junit.Test;
+import org.junit.function.ThrowingRunnable;
 
+/**
+ * Unit tests for the org.dcm4che3.net.Association class
+ */
 public class AssociationTest {
 
-    private static final String HOST = "localhost";
-    private static final Integer PORT = 12456;
-
-    private static final String CALLING_AET = "NICE_SCU";
-    private static final String CALLED_AET = "NAUGHTY_SCP";
-
-    private static Throwable uncaughtException;
-    private static NaughtyScp naughtyScp;
-
-    @BeforeClass
-    public static void startNaughtyScp() throws IOException {
-        naughtyScp = new NaughtyScp();
-        naughtyScp.start();
-    }
-
-    @AfterClass
-    public static void stopNaughtyScp() {
-        naughtyScp.stop();
-        if (uncaughtException != null) {
-            uncaughtException.printStackTrace();
-            fail("Caught Exception in NaughtyScp");
-        }
-    }
-
     @Test
-    public void testAdditionalPresentationContextsInAssociateAccept() throws Exception {
-        ApplicationEntity localAe = createLocalApplicationEntity();
-        ApplicationEntity remoteAe = createRemoteApplicationEntity();
-        
-        // Request only one Presentation Context; NaughtyScp will accept two
-        AAssociateRQ associateRequest = createAssociationRequest(
-            new TransferCapability(UID.MRImageStorage, UID.MRImageStorage, Role.SCU, UID.ImplicitVRLittleEndian)
-        );
+    public void writeDimseRsp_pduEncoderThrowsException_performingRqCounterDecremented() throws IOException {
+        Socket socket = new BadSocket();
 
-        Association association = localAe.connect(remoteAe, associateRequest);
-        association.release();
-    }
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
 
-    private ApplicationEntity createLocalApplicationEntity() throws IOException, GeneralSecurityException {
         Device device = new Device();
-        Connection connection = new Connection();
-        ApplicationEntity applicationEntity = new ApplicationEntity(CALLING_AET);
-        device.addConnection(connection);
-        device.addApplicationEntity(applicationEntity);
-        applicationEntity.addConnection(connection);
-
-        device.setExecutor(Executors.newSingleThreadExecutor());
-        device.setScheduledExecutor(Executors.newSingleThreadScheduledExecutor());
-        device.bindConnections();
-        return applicationEntity;
-    }
-
-    private ApplicationEntity createRemoteApplicationEntity() {
-        Device device = new Device();
-        Connection connection = createRemoteConnection();
-        ApplicationEntity applicationEntity = new ApplicationEntity(CALLED_AET);
-        device.addConnection(connection);
-        applicationEntity.addConnection(connection);
-
-        return applicationEntity;
-    }
-    
-    private Connection createRemoteConnection() {
-        Connection connection = new Connection();
-        connection.setHostname(HOST);
-        connection.setPort(PORT);
-        return connection;
-    }
-
-    private AAssociateRQ createAssociationRequest(TransferCapability... transferCapabilities) {
-        AAssociateRQ associateRequest = new AAssociateRQ();
-        for (TransferCapability transferCapability : transferCapabilities) {
-            String sopClass = transferCapability.getSopClass();
-            for (String transferSyntax : transferCapability.getTransferSyntaxes()) {
-                associateRequest.addPresentationContextFor(sopClass, transferSyntax);
+        device.setExecutor(executorService);
+        device.setAssociationMonitor(new AssociationMonitor() {
+            @Override public void onAssociationEstablished(Association as) {
             }
-        }
-        return associateRequest;
+
+            @Override public void onAssociationFailed(Association as, Throwable e) {
+            }
+
+            @Override public void onAssociationRejected(Association as, AAssociateRJ aarj) {
+            }
+
+            @Override public void onAssociationAccepted(Association as) {
+            }
+        });
+
+        Connection connection = new Connection();
+        connection.setDevice(device);
+
+        Association association = new Association(null, connection, socket);
+        association.handle(new AAssociateAC());
+
+        PresentationContext presentationContext = new PresentationContext(1, "as", "ts");
+        Attributes cmd = new Attributes();
+        cmd.setInt(Tag.CommandField, VR.US, 0x8021);
+        cmd.setInt(Tag.Status, VR.US, Status.Success);
+
+        int performingCount = association.getPerformingOperationCount();
+        Assert.assertThrows("OutputStream did not throw exception", BadSocketException.class, new ThrowingRunnable() {
+            @Override public void run() throws Throwable {
+                association.writeDimseRSP(presentationContext, cmd);
+            }
+        });
+
+        Assert.assertEquals("Performing Operation count did not decrement",
+                performingCount - 1, association.getPerformingOperationCount());
+        executorService.shutdownNow();
     }
 
-    private static class NaughtyScp {
+    private class BadSocket extends Socket {
 
-        private final ServerSocket serverSocket;
-        private byte[] associateAcceptWithAdditionalPresentationContext;
-        private Thread thread;
-        private boolean stopped = false;
-
-        public NaughtyScp() throws IOException {
-            serverSocket = new ServerSocket(PORT);
-            associateAcceptWithAdditionalPresentationContext = getBytesFromResource("associateAcceptWithTwoPresentationContexts.bin");
+        @Override public InputStream getInputStream() {
+            return new DummyInputStream();
         }
 
-        private byte[] getBytesFromResource(String name) throws IOException {
-            InputStream inputStream = AssociationTest.class.getResourceAsStream(name);
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            byte[] buffer = new byte[8 * 1024];
-            
-            int readBytes = inputStream.read(buffer);
-            while(readBytes > -1) {
-            	byteArrayOutputStream.write(buffer, 0, readBytes);
-            	readBytes = inputStream.read(buffer);
-            }
-            
-            return byteArrayOutputStream.toByteArray();
+        @Override public OutputStream getOutputStream() {
+            return new BadOutputStream();
         }
+    }
 
-        public void start() {
-            thread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        while (!stopped) {
-                            handleAssociateRequest();
-                        }
-                    } catch (InterruptedException exception) {
-                        // expected, just set interrupted flag
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            });
+    private class DummyInputStream extends InputStream {
 
-            thread.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
-                @Override
-                public void uncaughtException(Thread thread, Throwable throwable) {
-                    uncaughtException = throwable;
-                }
-            });
+        Semaphore semaphore = new Semaphore(-1);
 
-            thread.start();
-        }
-
-        private void handleAssociateRequest() throws InterruptedException {
+        @Override public int read() throws IOException {
             try {
-                Socket socket = serverSocket.accept();
-                OutputStream outputStream = socket.getOutputStream();
-                Thread.sleep(500);
-                outputStream.write(associateAcceptWithAdditionalPresentationContext);
-            } catch (IOException exception) {
-                throw new RuntimeException(exception);
+                // Simulate the blocking read for nextPDU
+                semaphore.acquire();
+            } catch (InterruptedException e) {
             }
+            return 0;
         }
+    }
 
-        public void stop() {
-            stopped = true;
-            if (thread != null) {
-                thread.interrupt();
-            }
+    private class BadOutputStream extends OutputStream {
+
+        @Override public void write(int b) throws IOException {
+            throw new BadSocketException();
         }
+    }
+
+    private class BadSocketException extends SocketException {
     }
 }

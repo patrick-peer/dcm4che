@@ -40,11 +40,17 @@
 
 package org.dcm4che3.tool.json2rst;
 
-import javax.json.*;
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.dcm4che3.tool.common.CLIUtils;
+
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedList;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,7 +59,7 @@ import java.util.regex.Pattern;
  * @since Aug 2016
  */
 public class Json2Rst {
-
+    private static final ResourceBundle rb = ResourceBundle.getBundle("org.dcm4che3.tool.json2rst.messages");
     private static final String UNDERLINE = "===============================================================";
     private final File indir;
     private final File outdir;
@@ -71,15 +77,30 @@ public class Json2Rst {
         this.tabularColumns = tabularColumns;
     }
 
+    private static CommandLine parseCommandLine(String[] args)
+            throws ParseException {
+        Options opts = new Options();
+        CLIUtils.addCommonOptions(opts);
+        return CLIUtils.parseComandLine(args, opts, rb, Json2Rst.class);
+    }
+
     public static void main(String[] args) throws Exception {
-        if (args.length < 2) {
-            System.out.println("Usage: json2rst <path-to-device.schema.json> <output-dir> [<tabular-columns>]");
-            System.exit(-1);
+        try {
+            CommandLine cl = parseCommandLine(args);
+            List<String> argList = cl.getArgList();
+            Json2Rst json2Rst = new Json2Rst(new File(argList.get(0)), new File(argList.get(1)));
+            if (argList.size() > 2)
+                json2Rst.setTabularColumns(argList.get(2));
+            json2Rst.process();
+        } catch (ParseException e) {
+            System.err.println("json2rst: " + e.getMessage());
+            System.err.println(rb.getString("try"));
+            System.exit(2);
+        } catch (Exception e) {
+            System.err.println("json2rst: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(2);
         }
-        Json2Rst json2Rst = new Json2Rst(new File(args[0]), new File(args[1]));
-        if (args.length > 2)
-            json2Rst.setTabularColumns(args[2]);
-        json2Rst.process();
     }
 
     private void process() throws IOException {
@@ -201,17 +222,27 @@ public class Json2Rst {
         out.print(isObj ? "object" : typeObj.getString("type"));
         out.print(",\"");
         out.print(ensureNoUndefinedSubstitutionReferenced(
-                property.getString("description").replace("\"","\"\"")));
+                formatURL(property.getString("description"))
+                        .replace("\"","\"\"")
+                        .replaceAll("<br>", "\n\n\t")
+                        .replaceAll("\\(hover on options to see their descriptions\\)", "")));
         JsonArray anEnum = typeObj.getJsonArray("enum");
         if (anEnum != null) {
-            out.print(" Enumerated values: ");
+            out.println();
+            out.println();
+            out.print("    ");
+            out.print("Enumerated values:");
             int last = anEnum.size()-1;
             for (int i = 0; i <= last; i++) {
-                if (i > 0)
-                    out.print(i < last ? ", " : " or ");
-                out.print(anEnum.get(i).toString().replace("\"",""));
+                out.println();
+                out.println();
+                out.print("    ");
+                String enumOption = anEnum.get(i).toString()
+                        .replace("\"", "");
+                out.print(enumOption.contains("|")
+                            ? enumOption.replaceAll("\\|", " (= ") + ")"
+                            : enumOption);
             }
-            out.print('.');
         }
         if (!isObj) {
             out.println();
@@ -221,6 +252,17 @@ public class Json2Rst {
             out.print(')');
         }
         out.println('"');
+    }
+
+    private String formatURL(String desc) {
+        int urlIndex = desc.indexOf("<a href");
+        if (urlIndex == -1)
+            return desc;
+
+        String url = desc.substring(urlIndex + 9, desc.indexOf("\" target"));
+        String placeholder = desc.substring(desc.indexOf("target=\"_blank\">") + 16, desc.indexOf("</a>"));
+        String desc2 = desc.substring(0, urlIndex) + '`' + placeholder + " <" + url + ">`_" + desc.substring(desc.indexOf("</a>") + 4);
+        return desc2.contains("<a href") ? formatURL(desc2) : desc2;
     }
 
     private String ensureNoUndefinedSubstitutionReferenced(String desc) {

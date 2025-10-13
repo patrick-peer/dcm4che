@@ -39,7 +39,9 @@
 package org.dcm4che3.net;
 
 import java.io.IOException;
+import java.util.Objects;
 
+import org.dcm4che3.data.Implementation;
 import org.dcm4che3.data.UID;
 import org.dcm4che3.net.pdu.AAssociateAC;
 import org.dcm4che3.net.pdu.AAssociateRJ;
@@ -53,14 +55,14 @@ import org.dcm4che3.net.pdu.UserIdentityAC;
  */
 public class AssociationHandler {
 
-    private UserIdentityNegotiator userIdNegotiator;
+    private UserIdentityNegotiator userIdNegotiator = new UserIdentityNegotiator(){};
 
     public UserIdentityNegotiator getUserIdNegotiator() {
         return userIdNegotiator;
     }
 
     public void setUserIdNegotiator(UserIdentityNegotiator userIdNegotiator) {
-        this.userIdNegotiator = userIdNegotiator;
+        this.userIdNegotiator = Objects.requireNonNull(userIdNegotiator);
     }
 
     protected AAssociateAC negotiate(Association as, AAssociateRQ rq)
@@ -70,7 +72,7 @@ public class AssociationHandler {
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_ACSE,
                     AAssociateRJ.REASON_PROTOCOL_VERSION_NOT_SUPPORTED);
         if (!rq.getApplicationContext().equals(
-                UID.DICOMApplicationContextName))
+                UID.DICOMApplicationContext))
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_PERMANENT,
                     AAssociateRJ.SOURCE_SERVICE_USER,
                     AAssociateRJ.REASON_APP_CTX_NAME_NOT_SUPPORTED);
@@ -84,9 +86,7 @@ public class AssociationHandler {
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_PERMANENT,
                     AAssociateRJ.SOURCE_SERVICE_USER,
                     AAssociateRJ.REASON_CALLING_AET_NOT_RECOGNIZED);
-        UserIdentityAC userIdentity = getUserIdNegotiator() != null
-                ? getUserIdNegotiator().negotiate(as, rq.getUserIdentityRQ())
-                : null;
+        UserIdentityAC userIdentity = getUserIdNegotiator().negotiate(as, rq.getUserIdentityRQ());
         if (ae.getDevice().isLimitOfAssociationsExceeded(rq))
             throw new AAssociateRJ(AAssociateRJ.RESULT_REJECTED_TRANSIENT,
                     AAssociateRJ.SOURCE_SERVICE_PROVIDER_PRES,
@@ -97,6 +97,7 @@ public class AssociationHandler {
     protected AAssociateAC makeAAssociateAC(Association as, AAssociateRQ rq,
             UserIdentityAC userIdentity) throws IOException {
         AAssociateAC ac = new AAssociateAC();
+        ac.setImplVersionName(Implementation.getVersionName());
         ac.setCalledAET(rq.getCalledAET());
         ac.setCallingAET(rq.getCallingAET());
         Connection conn = as.getConnection();
@@ -106,9 +107,13 @@ public class AssociationHandler {
         ac.setMaxOpsPerformed(Association.minZeroAsMax(rq.getMaxOpsPerformed(),
                 conn.getMaxOpsInvoked()));
         ac.setUserIdentityAC(userIdentity);
-        ApplicationEntity ae = as.getApplicationEntity();
+        ApplicationEntity ae = as.getApplicationEntity().transferCapabilitiesAE();
         for (PresentationContext rqpc : rq.getPresentationContexts())
-            ac.addPresentationContext(ae.negotiate(rq, ac, rqpc));
+            ac.addPresentationContext(ae != null
+                    ? ae.negotiate(rq, ac, rqpc)
+                    : new PresentationContext(rqpc.getPCID(),
+                        PresentationContext.ABSTRACT_SYNTAX_NOT_SUPPORTED,
+                        rqpc.getTransferSyntax()));
         return ac;
     }
 

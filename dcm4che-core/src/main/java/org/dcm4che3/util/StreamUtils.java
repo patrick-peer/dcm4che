@@ -38,12 +38,7 @@
 
 package org.dcm4che3.util;
 
-import java.io.EOFException;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URL;
 
 /**
@@ -100,12 +95,15 @@ public class StreamUtils {
         copy(in, out, new byte[COPY_BUFFER_SIZE]);
     }
 
-    public static  void copy(InputStream in, OutputStream out, int len,
-            byte buf[]) throws IOException {
+    public static  void copy(InputStream in, OutputStream out, int len, byte buf[]) throws IOException {
+        copy(in, out, unsignedInt(len), buf);
+    }
+
+    public static  void copy(InputStream in, OutputStream out, long len, byte buf[]) throws IOException {
         if (len < 0)
             throw new IndexOutOfBoundsException();
         while (len > 0) {
-            int count = in.read(buf, 0, Math.min(len, buf.length));
+            int count = in.read(buf, 0, (int) Math.min(len, buf.length));
             if (count < 0)
                 throw new EOFException();
             out.write(buf, 0, count);
@@ -113,12 +111,20 @@ public class StreamUtils {
         }
     }
 
-    public static  void copy(InputStream in, OutputStream out, int len)
-            throws IOException {
-        copy(in, out, len, new byte[Math.min(len, COPY_BUFFER_SIZE)]);
+    public static  void copy(InputStream in, OutputStream out, int len) throws IOException {
+        copy(in, out, unsignedInt(len));
+    }
+
+    public static  void copy(InputStream in, OutputStream out, long len) throws IOException {
+        copy(in, out, len & 0xffffffffL, new byte[(int) Math.min(len, COPY_BUFFER_SIZE)]);
     }
 
     public static void copy(InputStream in, OutputStream out, int len,
+            int swapBytes, byte buf[]) throws IOException {
+        copy(in, out, unsignedInt(len), swapBytes, buf);
+    }
+
+    public static void copy(InputStream in, OutputStream out, long len,
             int swapBytes, byte buf[]) throws IOException {
         if (swapBytes == 1) {
             copy(in, out, len, buf);
@@ -130,7 +136,7 @@ public class StreamUtils {
             throw new IllegalArgumentException("length: " + len);
         int off = 0;
         while (len > 0) {
-            int count = in.read(buf, off, Math.min(len, buf.length - off));
+            int count = in.read(buf, off, (int) Math.min(len, buf.length - off));
             if (count < 0)
                 throw new EOFException();
             len -= count;
@@ -156,8 +162,17 @@ public class StreamUtils {
 
     public static void copy(InputStream in, OutputStream out, int len,
             int swapBytes) throws IOException {
+        copy(in, out, unsignedInt(len), swapBytes);
+    }
+
+    private static long unsignedInt(int len) {
+        return len & 0xffffffffL;
+    }
+
+    public static void copy(InputStream in, OutputStream out, long len,
+            int swapBytes) throws IOException {
         copy(in, out, len, swapBytes,
-                new byte[Math.min(len, COPY_BUFFER_SIZE)]);
+                new byte[(int) Math.min(len, COPY_BUFFER_SIZE)]);
     }
 
     public static InputStream openFileOrURL(String name) throws IOException {
@@ -170,5 +185,55 @@ public class StreamUtils {
         if (name.indexOf(':') < 2)
             return new FileInputStream(name);
         return new URL(name).openStream();
+    }
+
+
+    public static void skipAll(InputStream in) throws IOException {
+        copy(in, nullOutputStream());
+    }
+
+    public static OutputStream nullOutputStream() {
+        return new OutputStream() {
+            private volatile boolean closed;
+
+            private void ensureOpen() throws IOException {
+                if (closed) {
+                    throw new IOException("Stream closed");
+                }
+            }
+
+            @Override
+            public void write(int b) throws IOException {
+                ensureOpen();
+            }
+
+            @Override
+            public void write(byte b[], int off, int len) throws IOException {
+                ensureOpen();
+            }
+
+            @Override
+            public void close() {
+                closed = true;
+            }
+        };
+    }
+
+    public static InputStream readSkippedInputStream(InputStream in) {
+        return readSkippedInputStream(in, new byte[COPY_BUFFER_SIZE]);
+    }
+
+    public static InputStream readSkippedInputStream(InputStream in, byte buf[]) {
+        return new FilterInputStream(in) {
+            @Override
+            public long skip(long n) throws IOException {
+                long remaining = n;
+                int read;
+                while (remaining > 0 && (read = read(buf, 0, (int) Math.min(remaining, buf.length))) > 0) {
+                    remaining -= read;
+                }
+                return n - remaining;
+            }
+        };
     }
 }

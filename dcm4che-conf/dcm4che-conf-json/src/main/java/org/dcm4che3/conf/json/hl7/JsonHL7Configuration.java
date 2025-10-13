@@ -40,6 +40,7 @@
 
 package org.dcm4che3.conf.json.hl7;
 
+import jakarta.json.stream.JsonParser;
 import org.dcm4che3.conf.api.ConfigurationException;
 import org.dcm4che3.conf.json.ConfigurationDelegate;
 import org.dcm4che3.conf.json.JsonConfigurationExtension;
@@ -50,7 +51,6 @@ import org.dcm4che3.net.Device;
 import org.dcm4che3.net.hl7.HL7Application;
 import org.dcm4che3.net.hl7.HL7DeviceExtension;
 
-import javax.json.stream.JsonParser;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -108,6 +108,7 @@ public class JsonHL7Configuration extends JsonConfigurationExtension {
         writer.writeNotEmpty("hl7AcceptedMessageType", hl7App.getAcceptedMessageTypes());
         writer.writeNotNullOrDef("hl7DefaultCharacterSet", hl7App.getHL7DefaultCharacterSet(), "ASCII");
         writer.writeNotNullOrDef("hl7SendingCharacterSet", hl7App.getHL7SendingCharacterSet(), "ASCII");
+        writer.writeNotEmpty("hl7OptionalMSHField", hl7App.getOptionalMSHFields());
         writer.writeNotNullOrDef("dicomDescription", hl7App.getDescription(), null);
         writer.writeNotEmpty("dicomApplicationCluster", hl7App.getApplicationClusters());
         for (JsonHL7ConfigurationExtension ext : extensions)
@@ -157,6 +158,9 @@ public class JsonHL7Configuration extends JsonConfigurationExtension {
                     break;
                 case "hl7SendingCharacterSet":
                     hl7App.setHL7SendingCharacterSet(reader.stringValue());
+                    break;
+                case "hl7OptionalMSHField":
+                    hl7App.setOptionalMSHFields(reader.intArray());
                     break;
                 case "dicomDescription":
                     hl7App.setDescription(reader.stringValue());

@@ -45,6 +45,8 @@ import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.VR;
 import org.junit.Test;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.regex.Pattern;
 
 /**
@@ -61,6 +63,8 @@ public class AttributesFormatTest {
         "{rnd}/{rnd,uuid}/{rnd,uid}";
     private static final String TEST_PATTERN_OFFSET =
         "{00200011,offset,100}/{00200013,offset,-1}";
+    private static final String TEST_PATTERN_SLICE =
+        "{00100020,slice,3}/{00100020,slice,3,6}/{00100020,slice,-3}/{00100020,slice,-6,-3}";
     private static final Pattern ASSERT_PATTERN_RND =
             Pattern.compile("[0-9A-F]{8}+/[0-9a-f]{8}+(-[0-9a-f]{4}+){3}+-[0-9a-f]{12}+/2\\.25\\.\\d*");
 
@@ -101,5 +105,35 @@ public class AttributesFormatTest {
         attrs.setString(Tag.SeriesNumber, VR.IS, "1");
         attrs.setString(Tag.InstanceNumber, VR.IS, "2");
         assertEquals("101/1", new AttributesFormat(TEST_PATTERN_OFFSET).format(attrs));
+    }
+
+    @Test
+    public void testSlice() {
+        Attributes attrs = new Attributes(1);
+        attrs.setString(Tag.PatientID, VR.LO, "123456789");
+        assertEquals("456789/456/789/456", new AttributesFormat(TEST_PATTERN_SLICE).format(attrs));
+    }
+
+    @Test
+    public void testUpper() {
+        Attributes attrs = new Attributes(1);
+        attrs.setString(Tag.PatientName, VR.PN, "Simson^Homer");
+        assertEquals("SIMSON^HOMER", new AttributesFormat("{00100010,upper}").format(attrs));
+    }
+
+    @Test
+    public void testDateTimeOffset() {
+        Attributes attrs = new Attributes(1);
+        attrs.setString(Tag.StudyDate, VR.DA, "20111012");
+        attrs.setString(Tag.StudyTime, VR.TM, "0930");
+        assertEquals("2011/09/12/10/00",
+                new AttributesFormat("{00080020,date-P1M,yyyy/MM/dd}/{00080030,time+PT30M,HH/mm}")
+                        .format(attrs));
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.MONTH, -1);
+        cal.add(Calendar.MINUTE, 30);
+        assertEquals(new SimpleDateFormat("yyyy/MM/dd/HH/mm").format(cal.getTime()),
+                new AttributesFormat("{now,date-P1M,yyyy/MM/dd}/{now,time+PT30M,HH/mm}")
+                        .format(attrs));
     }
 }

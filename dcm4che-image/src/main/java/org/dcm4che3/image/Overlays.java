@@ -38,6 +38,7 @@
 
 package org.dcm4che3.image;
 
+import java.awt.color.ColorSpace;
 import java.awt.image.ComponentSampleModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
@@ -46,6 +47,7 @@ import java.awt.image.DataBufferUShort;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 import java.util.Arrays;
+import java.util.function.Function;
 
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.Attributes;
@@ -103,7 +105,7 @@ public class Overlays {
         return Arrays.copyOf(result, len);
     }
 
-   public static void extractFromPixeldata(Raster raster, int mask, 
+    public static void extractFromPixeldata(Raster raster, int mask,
             byte[] ovlyData, int off, int length) {
         ComponentSampleModel sm = (ComponentSampleModel) raster.getSampleModel();
         int rows = raster.getHeight();
@@ -157,8 +159,44 @@ public class Overlays {
         }
     }
 
-    public static int getRecommendedDisplayGrayscaleValue(Attributes psAttrs,
-            int gg0000) {
+    public static int[] getRecommendedGrayscalePixelValue(Attributes psAttrs, int gg0000, int bits) {
+        int[] grayscaleValue = getRecommendedPixelValue(Tag.RecommendedDisplayGrayscaleValue, psAttrs, gg0000);
+        return grayscaleValue != null && grayscaleValue.length > 0
+                ? new int[] { grayscaleValue[0] >> (16 - bits) }
+                : null;
+    }
+
+    public static int[] getRecommendedRGBPixelValue(Attributes psAttrs, int gg0000) {
+        return getRecommendedRGBPixelValue(psAttrs, gg0000, Function.identity());
+    }
+
+    public static int[] getRecommendedRGBPixelValue(Attributes psAttrs, int gg0000, ColorSpace cspace) {
+        return getRecommendedRGBPixelValue(psAttrs, gg0000, cspace::fromRGB);
+    }
+
+    private static int[] getRecommendedRGBPixelValue(Attributes psAttrs, int gg0000,
+            Function<float[],float[]> fromRGB) {
+        int[] cieLabValue = getRecommendedPixelValue(Tag.RecommendedDisplayCIELabValue, psAttrs, gg0000);
+        return cieLabValue != null && cieLabValue.length == 3
+                ? cieLab2RGB(cieLabValue, fromRGB)
+                : null;
+    }
+
+    private static int[] cieLab2RGB(int[] cieLabValue, Function<float[],float[]> adjustColorSpace) {
+        float[] colorvalue = {
+                (cieLabValue[0] & 0xffff) / 655.35f,
+                ((cieLabValue[1] & 0xffff) - 0x8080) / 257.0f,
+                ((cieLabValue[2] & 0xffff) - 0x8080) / 257.0f};
+        float[] rgb = CIELabColorSpace.getInstance().toRGB(colorvalue);
+        rgb = adjustColorSpace.apply(rgb);
+        int[] pixel = new int[3];
+        for (int i = 0; i < 3; i++) {
+            pixel[i] = (int) (rgb[i] * 255 + 0.5f);
+        }
+        return pixel;
+    }
+
+    private static int[] getRecommendedPixelValue(int tag, Attributes psAttrs, int gg0000) {
         int tagOverlayActivationLayer = Tag.OverlayActivationLayer | gg0000;
         String layerName = psAttrs.getString(tagOverlayActivationLayer);
         if (layerName == null)
@@ -173,14 +211,18 @@ public class Overlays {
         
         for (Attributes layer : layers)
             if (layerName.equals(layer.getString(Tag.GraphicLayer)))
-                return layer.getInt(Tag.RecommendedDisplayGrayscaleValue, -1);
+                return layer.getInts(tag);
 
         throw new IllegalArgumentException("No Graphic Layer: " + layerName);
     }
 
     public static void applyOverlay(int frameIndex, WritableRaster raster,
             Attributes attrs, int gg0000, int pixelValue, byte[] ovlyData) {
+        applyOverlay(frameIndex, raster, attrs, gg0000, new int[] { pixelValue }, ovlyData);
+    }
 
+    public static void applyOverlay(int frameIndex, WritableRaster raster,
+            Attributes attrs, int gg0000, int[] pixelValue, byte[] ovlyData) {
         int imageFrameOrigin = attrs.getInt(Tag.ImageFrameOrigin | gg0000, 1);
         int framesInOverlay = attrs.getInt(Tag.NumberOfFramesInOverlay | gg0000, 1);
         int ovlyFrameIndex = frameIndex - imageFrameOrigin  + 1;
@@ -224,8 +266,12 @@ public class Overlays {
 
         int ovlyLen = ovlyRows * ovlyColumns;
         int ovlyOff = ovlyLen * ovlyFrameIndex;
-        for (int i = ovlyOff >>> 3,
-               end = (ovlyOff + ovlyLen + 7) >>> 3; i < end; i++) {
+        int end = (ovlyOff + ovlyLen + 7) >>> 3;
+        if (end > ovlyData.length) {
+        	LOG.warn("OverlayData to small ({} vs. {})! Skip this overlay:{}", ovlyData.length, end, TagUtils.toString(tagOverlayData));
+        	return;
+        }
+        for (int i = ovlyOff >>> 3; i < end; i++) {
             int ovlyBits = ovlyData[i] & 0xff;
             for (int j = 0; (ovlyBits>>>j) != 0; j++) {
                 if ((ovlyBits & (1<<j)) == 0)
@@ -238,7 +284,7 @@ public class Overlays {
                 int y = y0 + ovlyIndex / ovlyColumns;
                 int x = x0 + ovlyIndex % ovlyColumns;
                 try {
-                    raster.setSample(x, y, 0, pixelValue);
+                    raster.setPixel(x, y, pixelValue);
                 } catch (ArrayIndexOutOfBoundsException ignore) {}
             }
         }

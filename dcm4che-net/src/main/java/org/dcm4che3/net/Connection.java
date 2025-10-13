@@ -59,6 +59,7 @@ import java.util.EnumMap;
 import java.util.List;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -86,8 +87,9 @@ public class Connection implements Serializable {
 
     private static final long serialVersionUID = -7814748788035232055L;
 
-    public enum Protocol { DICOM, HL7, SYSLOG_TLS, SYSLOG_UDP, HTTP;
+    public enum Protocol { DICOM, HL7, HL7_MLLP2, SYSLOG_TLS, SYSLOG_UDP, HTTP;
         public boolean isTCP() { return this != SYSLOG_UDP; }
+        public boolean isHL7() { return this == HL7 || this == HL7_MLLP2; }
         public boolean isSyslog() { return this == SYSLOG_TLS || this == SYSLOG_UDP; }
     }
 
@@ -98,6 +100,7 @@ public class Connection implements Serializable {
     public static final int NOT_LISTENING = -1;
     public static final int DEF_BACKLOG = 50;
     public static final int DEF_SOCKETDELAY = 50;
+    public static final int DEF_ABORT_TIMEOUT = 1000;
     public static final int DEF_BUFFERSIZE = 0;
     public static final int DEF_MAX_PDU_LENGTH = 16378;
     // to fit into SunJSSE TLS Application Data Length 16408
@@ -125,6 +128,7 @@ public class Connection implements Serializable {
     private int retrieveTimeout;
     private boolean retrieveTimeoutTotal;
     private int idleTimeout;
+    private int abortTimeout = DEF_ABORT_TIMEOUT;
     private int socketCloseDelay = DEF_SOCKETDELAY;
     private int sendBufferSize;
     private int receiveBufferSize;
@@ -140,6 +144,7 @@ public class Connection implements Serializable {
     private String[] blacklist = {};
     private Boolean installed;
     private Protocol protocol = Protocol.DICOM;
+    private EndpointIdentificationAlgorithm tlsEndpointIdentificationAlgorithm;
     private static final EnumMap<Protocol, TCPProtocolHandler> tcpHandlers =
             new EnumMap<Protocol, TCPProtocolHandler>(Protocol.class);
     private static final EnumMap<Protocol, UDPProtocolHandler> udpHandlers =
@@ -154,6 +159,11 @@ public class Connection implements Serializable {
 
     static {
         registerTCPProtocolHandler(Protocol.DICOM, DicomProtocolHandler.INSTANCE);
+    }
+
+    public enum EndpointIdentificationAlgorithm {
+        HTTPS,
+        LDAPS
     }
 
     public Connection() {
@@ -319,6 +329,14 @@ public class Connection implements Serializable {
         needRebind();
     }
 
+    public EndpointIdentificationAlgorithm getTlsEndpointIdentificationAlgorithm() {
+        return tlsEndpointIdentificationAlgorithm;
+    }
+
+    public void setTlsEndpointIdentificationAlgorithm(EndpointIdentificationAlgorithm tlsEndpointIdentificationAlgorithm) {
+        this.tlsEndpointIdentificationAlgorithm = tlsEndpointIdentificationAlgorithm;
+    }
+
     boolean isRebindNeeded() {
         return rebindNeeded;
     }
@@ -468,6 +486,16 @@ public class Connection implements Serializable {
         if (timeout < 0)
             throw new IllegalArgumentException("timeout: " + timeout);
         this.releaseTimeout = timeout;
+    }
+
+    public int getAbortTimeout() {
+        return abortTimeout;
+    }
+
+    public void setAbortTimeout(int delay) {
+        if (delay < 0)
+            throw new IllegalArgumentException("delay: " + delay);
+        this.abortTimeout = delay;
     }
 
     /**
@@ -658,19 +686,18 @@ public class Connection implements Serializable {
     }
 
     /**
-     * Get the SO_RCVBUF socket value in KB.
+     * Get the SO_RCVBUF socket value.
      * 
-     * @return An int value containing the buffer size in KB.
+     * @return An int value containing the buffer size.
      */
     public final int getReceiveBufferSize() {
         return receiveBufferSize;
     }
 
     /**
-     * Set the SO_RCVBUF socket option to specified value in KB.
-     * 
-     * @param bufferSize
-     *            An int value containing the buffer size in KB.
+     * Set the SO_RCVBUF socket option to specified value.
+     *
+     * @param size the size to which to set the receive buffer size. Zero to use the default receive buffer size.
      */
     public final void setReceiveBufferSize(int size) {
         if (size < 0)
@@ -679,19 +706,18 @@ public class Connection implements Serializable {
     }
 
     /**
-     * Get the SO_SNDBUF socket option value in KB,
+     * Get the SO_SNDBUF socket option value.
      * 
-     * @return An int value containing the buffer size in KB.
+     * @return An int value containing the buffer size.
      */
     public final int getSendBufferSize() {
         return sendBufferSize;
     }
 
     /**
-     * Set the SO_SNDBUF socket option to specified value in KB,
-     * 
-     * @param bufferSize
-     *            An int value containing the buffer size in KB.
+     * Set the SO_SNDBUF socket option to specified value.
+     *
+     * @param size the size to which to set the send buffer size. Zero to use the default send buffer size.
      */
     public final void setSendBufferSize(int size) {
         if (size < 0)
@@ -1152,7 +1178,13 @@ public class Connection implements Serializable {
         ssl.setEnabledProtocols(
                 intersect(remoteConn.getTlsProtocols(), getTlsProtocols()));
         ssl.setEnabledCipherSuites(
-                intersect(remoteConn.tlsCipherSuites, tlsCipherSuites));
+                intersect(remoteConn.getTlsCipherSuites(), getTlsCipherSuites()));
+
+        if (tlsEndpointIdentificationAlgorithm != null) {
+            SSLParameters parameters = ssl.getSSLParameters();
+            parameters.setEndpointIdentificationAlgorithm(tlsEndpointIdentificationAlgorithm.name());
+            ssl.setSSLParameters(parameters);
+        }
         ssl.startHandshake();
         return ssl;
     }
@@ -1228,6 +1260,7 @@ public class Connection implements Serializable {
         setResponseTimeout(from.responseTimeout);
         setRetrieveTimeout(from.retrieveTimeout);
         setIdleTimeout(from.idleTimeout);
+        setAbortTimeout(from.abortTimeout);
         setSocketCloseDelay(from.socketCloseDelay);
         setSendBufferSize(from.sendBufferSize);
         setReceiveBufferSize(from.receiveBufferSize);
@@ -1240,6 +1273,7 @@ public class Connection implements Serializable {
         setTlsNeedClientAuth(from.tlsNeedClientAuth);
         setTlsCipherSuites(from.tlsCipherSuites);
         setTlsProtocols(from.tlsProtocols);
+        setTlsEndpointIdentificationAlgorithm(from.tlsEndpointIdentificationAlgorithm);
         setBlacklist(from.blacklist);
         setInstalled(from.installed);
     }

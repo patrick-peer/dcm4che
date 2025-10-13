@@ -38,10 +38,16 @@
 
 package org.dcm4che3.util;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.temporal.Temporal;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 import org.dcm4che3.data.DatePrecision;
 
@@ -205,31 +211,96 @@ public class DateUtils {
         return parseDA(tz, s, false);
     }
 
+    public static LocalDate parseLocalDA(String s) {
+        int length = s.length();
+        if (!(length == 8 || length == 10 && !Character.isDigit(s.charAt(4)) && s.charAt(7) == s.charAt(4)))
+            throw new IllegalArgumentException(s);
+        int pos = 0;
+        int year = parseDigit(s, pos++) * 1000 +
+                   parseDigit(s, pos++) * 100 +
+                   parseDigit(s, pos++) * 10 +
+                   parseDigit(s, pos++);
+        if (length == 10)
+            pos++;
+        int month = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+        if (length == 10)
+            pos++;
+        int dayOfMonth = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+
+        return LocalDate.of(year, month, dayOfMonth);
+    }
+
     public static Date parseDA(TimeZone tz, String s, boolean ceil) {
         Calendar cal = cal(tz);
         int length = s.length();
-        if (!(length == 8 || length == 10 && !Character.isDigit(s.charAt(4))))
+        if (!(length == 8 || length == 10 && !Character.isDigit(s.charAt(4)) && s.charAt(7) == s.charAt(4)))
             throw new IllegalArgumentException(s);
-        try {
-            int pos = 0;
-            cal.set(Calendar.YEAR,
-                    Integer.parseInt(s.substring(pos, pos + 4)));
-            pos += 4;
-            if (!Character.isDigit(s.charAt(pos)))
-                pos++;
-            cal.set(Calendar.MONTH,
-                    Integer.parseInt(s.substring(pos, pos + 2)) - 1);
-            pos += 2;
-            if (!Character.isDigit(s.charAt(pos)))
-                pos++;
-            cal.set(Calendar.DAY_OF_MONTH,
-                    Integer.parseInt(s.substring(pos)));
-            if (ceil)
-                ceil(cal, Calendar.DAY_OF_MONTH);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(s);
-        }
+        int pos = 0;
+        cal.set(Calendar.YEAR,
+                parseDigit(s, pos++) * 1000 +
+                parseDigit(s, pos++) * 100 +
+                parseDigit(s, pos++) * 10 +
+                parseDigit(s, pos++));
+        if (length == 10)
+            pos++;
+        cal.set(Calendar.MONTH,
+                parseDigit(s, pos++) * 10 + parseDigit(s, pos++) - 1);
+        if (length == 10)
+            pos++;
+        cal.set(Calendar.DAY_OF_MONTH,
+                parseDigit(s, pos++) * 10 + parseDigit(s, pos++));
+        if (ceil)
+            ceil(cal, Calendar.DAY_OF_MONTH);
         return cal.getTime();
+    }
+
+    public static LocalTime parseLocalTM(String s, DatePrecision precision) {
+        int length = s.length();
+        int pos = 0;
+        if (pos + 2 > length)
+            throw new IllegalArgumentException(s);
+
+        precision.lastField = Calendar.HOUR_OF_DAY;
+        int hour = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+        int minute = 0;
+        int second = 0;
+        int nanos = 0;
+
+        if (pos < length) {
+            if (!Character.isDigit(s.charAt(pos)))
+                pos++;
+            if (pos + 2 > length)
+                throw new IllegalArgumentException(s);
+
+            precision.lastField = Calendar.MINUTE;
+            minute = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+
+            if (pos < length) {
+                if (!Character.isDigit(s.charAt(pos)))
+                    pos++;
+                if (pos + 2 > length)
+                    throw new IllegalArgumentException(s);
+
+                precision.lastField = Calendar.SECOND;
+                second = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+                int n = length - pos;
+                if (n > 0) {
+                    if (s.charAt(pos++) != '.')
+                        throw new IllegalArgumentException(s);
+
+                    int fraction = 1_00_000_000;
+                    int d;
+                    for (int i = 1; i < n; i++) {
+                        d = parseDigit(s, pos++);
+                        nanos += d * fraction;
+                        fraction /= 10;
+                    }
+                    // TODO this is not accurate as the precision can also be higher (microsecond)
+                    precision.lastField = Calendar.MILLISECOND;
+                }
+            }
+        }
+        return LocalTime.of(hour, minute, second, nanos);
     }
 
     public static Date parseTM(TimeZone tz, String s, DatePrecision precision) {
@@ -238,7 +309,18 @@ public class DateUtils {
 
     public static Date parseTM(TimeZone tz, String s, boolean ceil,
             DatePrecision precision) {
-        return parseTM(cal(tz), s, ceil, precision);
+        return parseTM(cal(tz), truncateTimeZone(s), ceil, precision);
+    }
+
+    private static String truncateTimeZone(String s) {
+        int length = s.length();
+        if (length > 4) {
+            char sign = s.charAt(length - 5);
+            if (sign == '+' || sign == '-') {
+                return s.substring(0, length - 5);
+            }
+        }
+        return s;
     }
 
     private static Date parseTM(Calendar cal, String s, boolean ceil,
@@ -248,43 +330,52 @@ public class DateUtils {
         if (pos + 2 > length)
             throw new IllegalArgumentException(s);
 
-        try {
-            cal.set(precision.lastField = Calendar.HOUR_OF_DAY,
-                    Integer.parseInt(s.substring(pos, pos + 2)));
-            pos += 2;
+        cal.set(precision.lastField = Calendar.HOUR_OF_DAY,
+            parseDigit(s, pos++) * 10 + parseDigit(s, pos++));
+        if (pos < length) {
+            if (!Character.isDigit(s.charAt(pos)))
+                pos++;
+            if (pos + 2 > length)
+                throw new IllegalArgumentException(s);
+
+            cal.set(precision.lastField = Calendar.MINUTE,
+                parseDigit(s, pos++) * 10 + parseDigit(s, pos++));
             if (pos < length) {
                 if (!Character.isDigit(s.charAt(pos)))
                     pos++;
                 if (pos + 2 > length)
                     throw new IllegalArgumentException(s);
-
-                cal.set(precision.lastField = Calendar.MINUTE,
-                        Integer.parseInt(s.substring(pos, pos + 2)));
-                pos += 2;
-                if (pos < length) {
-                    if (!Character.isDigit(s.charAt(pos)))
-                        pos++;
-                    if (pos + 2 > length)
+                cal.set(precision.lastField = Calendar.SECOND,
+                        parseDigit(s, pos++) * 10 + parseDigit(s, pos++));
+                int n = length - pos;
+                if (n > 0) {
+                    if (s.charAt(pos++) != '.')
                         throw new IllegalArgumentException(s);
-                    cal.set(precision.lastField = Calendar.SECOND,
-                            Integer.parseInt(s.substring(pos, pos + 2)));
-                    pos += 2;
-                    if (pos < length) {
-                        float f = Float.parseFloat(s.substring(pos));
-                        if (f >= 1 || f < 0)
-                            throw new IllegalArgumentException(s);
-                        cal.set(precision.lastField = Calendar.MILLISECOND, 
-                                (int) (f * 1000));
-                        return cal.getTime();
+
+                    int d, millis = 0;
+                    for (int i = 1; i < n; ++i) {
+                        d = parseDigit(s, pos++);
+                        if (i < 4)
+                            millis += d;
+                        else if (i == 4 & d > 4) // round up
+                            millis++;
+                        if (i < 3) millis *= 10;
                     }
+                    for (int i = n; i < 3; ++i) millis *= 10;
+                    cal.set(precision.lastField = Calendar.MILLISECOND, millis);
+                    return cal.getTime();
                 }
             }
-            if (ceil)
-                ceil(cal, precision.lastField);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(s);
         }
+        if (ceil)
+            ceil(cal, precision.lastField);
         return cal.getTime();
+    }
+
+    private static int parseDigit(String s, int index) {
+        int d = s.charAt(index) - '0';
+        if (d < 0 || d > 9) throw new IllegalArgumentException(s);
+        return d;
     }
 
     public static Date parseDT(TimeZone tz, String s, DatePrecision precision) {
@@ -308,6 +399,32 @@ public class DateUtils {
             cachedTimeZone = tz = TimeZone.getTimeZone(tzid);
 
         return tz;
+    }
+
+    private static ZoneOffset safeZoneOffset(String s) {
+        int length = s.length();
+        if (length < 5) {
+            return null;
+        }
+
+        int pos = length -5;
+        char sign = s.charAt(pos++);
+        if (sign != '+' && sign != '-') {
+            return null;
+        }
+
+        try {
+            int hour = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+            int minute = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+
+            if (sign == '-') {
+                hour *= -1;
+            }
+
+            return ZoneOffset.ofHoursMinutes(hour, minute);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private static String tzid(String s) {
@@ -336,40 +453,86 @@ public class DateUtils {
             tz = tz1;
         }
         Calendar cal = cal(tz);
-        try {
-            int pos = 0;
-            if (pos + 4 > length)
+        int pos = 0;
+        if (pos + 4 > length)
+            throw new IllegalArgumentException(s);
+        cal.set(precision.lastField = Calendar.YEAR,
+                parseDigit(s, pos++) * 1000 +
+                parseDigit(s, pos++) * 100 +
+                parseDigit(s, pos++) * 10 +
+                parseDigit(s, pos++));
+        if (pos < length) {
+            if (!Character.isDigit(s.charAt(pos)))
+                pos++;
+            if (pos + 2 > length)
                 throw new IllegalArgumentException(s);
-            cal.set(precision.lastField = Calendar.YEAR,
-                    Integer.parseInt(s.substring(pos, pos + 4)));
-            pos += 4;
+            cal.set(precision.lastField = Calendar.MONTH,
+                    parseDigit(s, pos++) * 10 + parseDigit(s, pos++) - 1);
             if (pos < length) {
                 if (!Character.isDigit(s.charAt(pos)))
                     pos++;
                 if (pos + 2 > length)
                     throw new IllegalArgumentException(s);
-                cal.set(precision.lastField = Calendar.MONTH,
-                        Integer.parseInt(s.substring(pos,  pos + 2)) - 1);
-                pos += 2;
-                if (pos < length) {
-                    if (!Character.isDigit(s.charAt(pos)))
-                        pos++;
-                    if (pos + 2 > length)
-                        throw new IllegalArgumentException(s);
-                    cal.set(precision.lastField = Calendar.DAY_OF_MONTH,
-                            Integer.parseInt(s.substring(pos, pos + 2)));
-                    pos += 2;
-                    if (pos < length)
-                        return parseTM(cal, s.substring(pos, length), ceil,
-                                precision);
-                }
+                cal.set(precision.lastField = Calendar.DAY_OF_MONTH,
+                        parseDigit(s, pos++) * 10 + parseDigit(s, pos++));
+                if (pos < length)
+                    return parseTM(cal, s.substring(pos, length), ceil,
+                            precision);
             }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(s);
         }
         if (ceil)
             ceil(cal, precision.lastField);
         return cal.getTime();
     }
 
+    public static Temporal parseTemporalDT(String s, DatePrecision precision) {
+        int length = s.length();
+        ZoneOffset offset = safeZoneOffset(s);
+        if (offset != null) {
+            precision.includeTimezone = true;
+            length -= 5;
+        }
+
+        int pos = 0;
+        if (pos + 4 > length)
+            throw new IllegalArgumentException(s);
+
+        precision.lastField = Calendar.YEAR;
+        int year = parseDigit(s, pos++) * 1000 +
+                        parseDigit(s, pos++) * 100 +
+                        parseDigit(s, pos++) * 10 +
+                        parseDigit(s, pos++);
+        int month = 0;
+        int day = 0;
+        LocalTime time = null;
+
+        if (pos < length) {
+            if (!Character.isDigit(s.charAt(pos)))
+                pos++;
+            if (pos + 2 > length)
+                throw new IllegalArgumentException(s);
+            precision.lastField = Calendar.MONTH;
+            month = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+            if (pos < length) {
+                if (!Character.isDigit(s.charAt(pos)))
+                    pos++;
+                if (pos + 2 > length)
+                    throw new IllegalArgumentException(s);
+                precision.lastField = Calendar.DAY_OF_MONTH;
+                day = parseDigit(s, pos++) * 10 + parseDigit(s, pos++);
+                if (pos < length)
+                    time = parseLocalTM(s.substring(pos, length), precision);
+            }
+        }
+
+        if(time == null)
+            time = LocalTime.of(0,0);
+        LocalDateTime dateTime = LocalDate.of(year, month, day).atTime(time);
+
+        if(offset != null) {
+            return dateTime.atOffset(offset);
+        }
+
+        return dateTime;
+    }
 }

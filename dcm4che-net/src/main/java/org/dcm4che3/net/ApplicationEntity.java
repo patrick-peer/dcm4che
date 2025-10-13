@@ -90,10 +90,13 @@ public class ApplicationEntity implements Serializable {
     private boolean initiator = true;
     private Boolean installed;
     private Boolean roleSelectionNegotiationLenient;
+    private String shareTransferCapabilitiesFromAETitle;
     private String hl7ApplicationName;
     private final LinkedHashSet<String> acceptedCallingAETs = new LinkedHashSet<>();
     private final LinkedHashSet<String> otherAETs = new LinkedHashSet<>();
+    private final LinkedHashSet<String> noAsyncModeCalledAETs = new LinkedHashSet<>();
     private final LinkedHashMap<String, String> masqueradeCallingAETs = new LinkedHashMap<>();
+    private final LinkedHashMap<String, String> masqueradeCalledAETs = new LinkedHashMap<>();
     private final List<Connection> conns = new ArrayList<>(1);
     private final LinkedHashMap<String, TransferCapability> scuTCs = new LinkedHashMap<>();
     private final LinkedHashMap<String, TransferCapability> scpTCs = new LinkedHashMap<>();
@@ -281,14 +284,28 @@ public class ApplicationEntity implements Serializable {
         return otherAETs.contains(aet);
     }
 
+    public String[] getNoAsyncModeCalledAETitles() {
+        return noAsyncModeCalledAETs.toArray(new String[noAsyncModeCalledAETs.size()]);
+    }
+
+    public void setNoAsyncModeCalledAETitles(String... aets) {
+        noAsyncModeCalledAETs.clear();
+        for (String aet : aets) {
+            noAsyncModeCalledAETs.add(aet);
+        }
+    }
+
+    public boolean isNoAsyncModeCalledAETitle(String calledAET) {
+        return noAsyncModeCalledAETs.contains(calledAET);
+    }
+
     public String[] getMasqueradeCallingAETitles() {
         String[] aets = new String[masqueradeCallingAETs.size()];
         int i = 0;
         for (Map.Entry<String, String> entry : masqueradeCallingAETs.entrySet()) {
-            aets[i] = entry.getKey().equals("*")
+            aets[i++] = entry.getKey().equals("*")
                     ? entry.getValue()
                     : '[' + entry.getKey() + ']' + entry.getValue();
-            i++;
         }
         return aets;
     }
@@ -306,6 +323,24 @@ public class ApplicationEntity implements Serializable {
         }
     }
 
+    public String[] getMasqueradeCalledAETitles() {
+        String[] aets = new String[masqueradeCalledAETs.size()];
+        int i = 0;
+        for (Map.Entry<String, String> entry : masqueradeCalledAETs.entrySet()) {
+            aets[i++] = entry.getKey() + ':' + entry.getValue();
+        }
+        return aets;
+    }
+
+    public void setMasqueradeCalledAETitles(String... aets) {
+        masqueradeCalledAETs.clear();
+        for (String aet : aets) {
+            int index = aet.indexOf(':');
+            if (index > 0)
+                masqueradeCalledAETs.put(aet.substring(0,index), aet.substring(index + 1));
+        }
+    }
+
     public String getCallingAETitle(String calledAET) {
         String callingAET = masqueradeCallingAETs.get(calledAET);
         if (callingAET == null) {
@@ -318,6 +353,10 @@ public class ApplicationEntity implements Serializable {
 
     public boolean isMasqueradeCallingAETitle(String calledAET) {
         return masqueradeCallingAETs.containsKey(calledAET) || masqueradeCallingAETs.containsKey("*");
+    }
+
+    public String masqueradeCalledAETitle(String calledAET) {
+        return masqueradeCalledAETs.getOrDefault(calledAET, calledAET);
     }
 
     /**
@@ -427,8 +466,22 @@ public class ApplicationEntity implements Serializable {
         return roleSelectionNegotiationLenient;
     }
 
-    public void setRoleSelectionNegotiationLenient(Boolean installed) {
+    public void setRoleSelectionNegotiationLenient(Boolean roleSelectionNegotiationLenient) {
         this.roleSelectionNegotiationLenient = roleSelectionNegotiationLenient;
+    }
+
+    public String getShareTransferCapabilitiesFromAETitle() {
+        return shareTransferCapabilitiesFromAETitle;
+    }
+
+    public void setShareTransferCapabilitiesFromAETitle(String shareTransferCapabilitiesFromAETitle) {
+        this.shareTransferCapabilitiesFromAETitle = shareTransferCapabilitiesFromAETitle;
+    }
+
+    public ApplicationEntity transferCapabilitiesAE() {
+        return shareTransferCapabilitiesFromAETitle != null
+                ? device.getApplicationEntity(shareTransferCapabilitiesFromAETitle)
+                : this;
     }
 
     public String getHl7ApplicationName() {
@@ -530,6 +583,11 @@ public class ApplicationEntity implements Serializable {
         return (role == TransferCapability.Role.SCU ? scuTCs : scpTCs).get(sopClass);
     }
 
+    public boolean hasTransferCapabilityFor(
+            String sopClass, TransferCapability.Role role) {
+        return (role == TransferCapability.Role.SCU ? scuTCs : scpTCs).containsKey(sopClass);
+    }
+
     protected PresentationContext negotiate(AAssociateRQ rq, AAssociateAC ac,
            PresentationContext rqpc) {
        String as = rqpc.getAbstractSyntax();
@@ -618,8 +676,10 @@ public class ApplicationEntity implements Serializable {
         checkInstalled();
         if (rq.getCallingAET() == null)
             rq.setCallingAET(getCallingAETitle(rq.getCalledAET()));
-        rq.setMaxOpsInvoked(local.getMaxOpsInvoked());
-        rq.setMaxOpsPerformed(local.getMaxOpsPerformed());
+        if (!isNoAsyncModeCalledAETitle(rq.getCalledAET())) {
+            rq.setMaxOpsInvoked(local.getMaxOpsInvoked());
+            rq.setMaxOpsPerformed(local.getMaxOpsPerformed());
+        }
         rq.setMaxPDULength(local.getReceivePDULength());
         Socket sock = local.connect(remote);
         AssociationMonitor monitor = device.getAssociationMonitor();
@@ -668,7 +728,7 @@ public class ApplicationEntity implements Serializable {
         throws IOException, InterruptedException, IncompatibleConnectionException, GeneralSecurityException {
         CompatibleConnection cc = findCompatibleConnection(remote);
         if (rq.getCalledAET() == null)
-            rq.setCalledAET(remote.getAETitle());
+            rq.setCalledAET(masqueradeCalledAETitle(remote.getAETitle()));
         return connect(cc.getLocalConnection(), cc.getRemoteConnection(), rq);
     }
 
@@ -735,10 +795,13 @@ public class ApplicationEntity implements Serializable {
         acceptedCallingAETs.addAll(from.acceptedCallingAETs);
         otherAETs.clear();
         otherAETs.addAll(from.otherAETs);
+        noAsyncModeCalledAETs.clear();
+        noAsyncModeCalledAETs.addAll(from.noAsyncModeCalledAETs);
         masqueradeCallingAETs.clear();
         masqueradeCallingAETs.putAll(from.masqueradeCallingAETs);
         supportedCharacterSets = from.supportedCharacterSets;
         prefTransferSyntaxes = from.prefTransferSyntaxes;
+        shareTransferCapabilitiesFromAETitle = from.shareTransferCapabilitiesFromAETitle;
         hl7ApplicationName = from.hl7ApplicationName;
         acceptor = from.acceptor;
         initiator = from.initiator;

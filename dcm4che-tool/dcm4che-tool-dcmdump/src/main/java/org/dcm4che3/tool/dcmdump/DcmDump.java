@@ -57,6 +57,7 @@ import org.dcm4che3.data.VR;
 import org.dcm4che3.io.DicomInputHandler;
 import org.dcm4che3.io.DicomInputStream;
 import org.dcm4che3.tool.common.CLIUtils;
+import org.dcm4che3.util.ByteUtils;
 import org.dcm4che3.util.TagUtils;
 
 /**
@@ -84,7 +85,7 @@ public class DcmDump implements DicomInputHandler {
 
     public void parse(DicomInputStream dis) throws IOException {
         dis.setDicomInputHandler(this);
-        dis.readDataset(-1, -1);
+        dis.readDataset();
     }
 
     @Override
@@ -120,7 +121,7 @@ public class DcmDump implements DicomInputHandler {
             }
             return;
         }
-        byte[] b = dis.readValue();
+        byte[] b = probeValue(dis);
         line.append(" [");
         if (vr.prompt(b, dis.bigEndian(),
                 attrs.getSpecificCharacterSet(),
@@ -133,8 +134,19 @@ public class DcmDump implements DicomInputHandler {
             dis.setFileMetaInformationGroupLength(b);
         else if (tag == Tag.TransferSyntaxUID
                 || tag == Tag.SpecificCharacterSet
+                || tag == Tag.PixelRepresentation
                 || TagUtils.isPrivateCreator(tag))
             attrs.setBytes(tag, vr, b);
+    }
+
+    private byte[] probeValue(DicomInputStream dis) throws IOException {
+        long len = dis.unsignedLength();
+        if (len == 0) return ByteUtils.EMPTY_BYTES;
+        int read = (int) Math.min(len, (width + 7) & ~7);
+        byte[] b = new byte[read];
+        dis.readFully(b);
+        dis.skipFully(len - read);
+        return b;
     }
 
     @Override
@@ -180,7 +192,7 @@ public class DcmDump implements DicomInputHandler {
         VR vr = dis.vr();
         if (vr != null)
             line.append(vr).append(' ');
-        line.append('#').append(dis.length());
+        line.append('#').append(dis.unsignedLength());
     }
 
     private void appendKeyword(DicomInputStream dis, String privateCreator, StringBuilder line) {
@@ -203,7 +215,7 @@ public class DcmDump implements DicomInputHandler {
 
     private void appendFragment(StringBuilder line, DicomInputStream dis,
             VR vr) throws IOException {
-        byte[] b = dis.readValue();
+        byte[] b = probeValue(dis);
         line.append(" [");
         if (vr.prompt(b, dis.bigEndian(), null, 
                 width - line.length() - 1, line)) {

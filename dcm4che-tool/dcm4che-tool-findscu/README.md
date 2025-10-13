@@ -1,3 +1,4 @@
+```
 usage: findscu [options] -c <aet>@<host>:<port> [--]
                [<dicom-file>|<xml-file>...]
 
@@ -17,16 +18,12 @@ Options:
     --accept-timeout <ms>                 timeout in ms for receiving
                                           A-ASSOCIATE-AC, no timeout by
                                           default
- -b,--bind <aet[@ip][:port]>              specify AE Title, local address
+ -b,--bind <aet[@ip]>                     specify AE Title, local address
                                           of the Application Entity
                                           provided by this application;
                                           use FINDSCU and pick up any
                                           valid local address to bind the
-                                          socket by default. If also a
-                                          port is specified, the
-                                          Application Entity will
-                                          listening for incoming
-                                          association requests on it.
+                                          socket by default.
     --big-endian                          propose all uncompressed TS,
                                           explicit VR big endian first
                                           (default: implicit VR little
@@ -73,12 +70,12 @@ Options:
                                           password by default
     --key-store <file|url>                file path or URL of key store
                                           containing the private key,
-                                          resource:key.jks by default
+                                          resource:key.p12 by default
     --key-store-pass <password>           password for key store
                                           containing the private key,
                                           'secret' by default
     --key-store-type <storetype>          type of key store containing the
-                                          private key, JKS by default
+                                          private key, PKCS12 by default
  -L <PATIENT|STUDY|SERIES|IMAGE>          specifies retrieve level. Use
                                           STUDY for PatientRoot,
                                           StudyRoot, PatientStudyOnly by
@@ -91,14 +88,14 @@ Options:
                                           ColorPalette. If no Information
                                           Model is specified, StudyRoot
                                           will be used.
- -m <[seq/]attr=value>                    specify matching key. attr can
+ -m <[seq.]attr=value>                    specify matching key. attr can
                                           be specified by keyword or tag
                                           value (in hex), e.g. PatientName
                                           or 00100010. Attributes in
                                           nested Datasets can be specified
                                           by including the keyword/tag
                                           value of the sequence attribute,
-                                          e.g. 00400275/00400009 for
+                                          e.g. 00400275.00400009 for
                                           Scheduled Procedure Step ID in
                                           the Request Attributes Sequence.
                                           Overrides query keys specified
@@ -156,7 +153,7 @@ Options:
     --proxy <[user:password@]host:port>   specify host and port of the
                                           HTTP Proxy to tunnel the DICOM
                                           connection.
- -r <[seq/]attr>                          specify return key. key can be
+ -r <[seq.]attr>                          specify return key. key can be
                                           specified by keyword or tag
                                           value (in hex), e.g.
                                           NumberOfStudyRelatedSeries or
@@ -220,6 +217,12 @@ Options:
                                           specified Cipher Suite. Multiple
                                           Cipher Suites may be enabled by
                                           multiple --tls-cipher options
+    --tls-eia-https                       enable server endpoint
+                                          identification according RFC
+                                          2818: HTTP Over TLS
+    --tls-eia-ldaps                       enable server endpoint
+                                          identification according RFC
+                                          2830: LDAP Extension for TLS
     --tls-noauth                          disable client authentification
                                           for TLS
     --tls-null                            enable TLS connection without
@@ -249,18 +252,22 @@ Options:
                                           --tls-protocol TLSv1.3
     --trust-store <file|url>              file path of key store
                                           containing trusted certificates,
-                                          resource:cacerts.jks by default
+                                          resource:cacerts.p12 by default
     --trust-store-pass <password>         password for key store with
                                           trusted certificates, 'secret'
                                           by default
     --trust-store-type <storetype>        type of key store with trusted
-                                          certificates, JKS by default
+                                          certificates, PKCS12 by default
     --user <name>                         negotiate user identity with
                                           specified user name
+    --user-jwt <token>                    negotiate user identity with
+                                          specified JSON Web Token
     --user-pass <password>                negotiate user identity with
                                           specified password
     --user-rsp                            negotiate user identity with
                                           positive response requested
+    --user-saml <assertion>               negotiate user identity with
+                                          specified SAML Assertion
  -V,--version                             output version information and
                                           exit
  -X,--xml                                 write received matches as XML
@@ -291,3 +298,4 @@ Provider DCMQRSCP listening on local port 11112 by applying the
 presentation state stylesheet with query keys provided in
 /etc/findscu/pr.xml file and Modality as PR; concatenate the results to a
 csv file in a specific directory.
+```
