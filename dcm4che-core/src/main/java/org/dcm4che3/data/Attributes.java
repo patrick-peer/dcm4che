@@ -72,8 +72,8 @@ public class Attributes implements Serializable {
     }
 
     public interface SequenceVisitor extends Visitor {
-    	void startSequence(int sqTag);
-    	void endSequence();
+//    	void startSequence(int sqTag);
+//    	void endSequence();
         void startItem(int sqTag, int itemIndex);
         void endItem();
         default void startSequence(int sqTag) {};
