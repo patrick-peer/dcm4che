@@ -225,13 +225,12 @@
     <module>dcm4che-camel</module>
     <module>dcm4che-test-data</module>
   </modules>
-  <distributionManagement>
-    <repository>
-      <id>www.dcm4che.org</id>
-      <name>dcm4che Repository</name>
-      <url>scp://maven.dcm4che.org:52771/data/dcm4che-maven-nginx/maven2</url>
-    </repository>
-  </distributionManagement>
+<distributionManagement>
+  <repository>
+    <id>nexus-thirdparty</id>
+    <url>http://nexus.synedra.lan:8081/repository/thirdparty/</url>
+  </repository>
+</distributionManagement>
   <repositories>
     <repository>
       <id>www.dcm4che.org</id>
